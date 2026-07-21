@@ -1,10 +1,8 @@
 import React from 'react';
-import { Drawer, AppBar, Toolbar, Typography, List, ListItem, ListItemIcon, ListItemText, Box, CssBaseline, Button } from '@mui/material';
-import { ModeOfTravel, Groups, Settings, BookmarkBorder, Badge, Logout } from '@mui/icons-material';
-import { Link, useNavigate } from 'react-router-dom';
-import { logout } from '../auth/authClient';
-
-const drawerWidth = 240;
+import { Box, CssBaseline, Typography } from '@mui/material';
+import { ModeOfTravel, Groups, BookmarkBorder, Badge } from '@mui/icons-material';
+import { Link } from 'react-router-dom';
+import Header from '../Components/Header';
 
 const navItems = [
   { text: 'Travels', icon: <ModeOfTravel />, to: '/createTravel' },
@@ -15,33 +13,12 @@ const navItems = [
 ];
 
 const MainDashboardAdmin = () => {
-  const navigate = useNavigate();
-
-  const handleLogout = () => {
-    logout();
-    navigate('/login');
-  };
-
   return (
-    <Box sx={{ display: 'flex' }}>
+    <Box sx={{ display: 'flex', flexDirection: 'column', minHeight: '100vh' }}>
       <CssBaseline />
 
       {/* Top App Bar */}
-      <AppBar
-        position="fixed"
-        sx={{ zIndex: (theme) => theme.zIndex.drawer + 1, backgroundColor: '#1e293b' }}
-      >
-        <Toolbar sx={{ justifyContent: 'space-between' }}>
-          <Typography variant="h6" noWrap component="div">
-            DepEd Camarines Norte Admin
-          </Typography>
-          <Button color="inherit" startIcon={<Logout />} onClick={handleLogout}>
-            Log out
-          </Button>
-        </Toolbar>
-      </AppBar>
-
-      
+      <Header title="DepEd Camarines Norte Admin" navLinks={[]} showLogout />
 
       {/* Main Content Area */}
       <Box
@@ -49,12 +26,10 @@ const MainDashboardAdmin = () => {
         sx={{
           flexGrow: 1,
           p: 3,
-          mt: 8,
           display: 'flex',
           flexDirection: 'column',
           alignItems: 'center',
           justifyContent: 'center',
-          height: '100vh',
           background: `
             radial-gradient(circle at 20% 30%, #e0f7fa, transparent 60%),
             radial-gradient(circle at 80% 40%, #ede7f6, transparent 70%),

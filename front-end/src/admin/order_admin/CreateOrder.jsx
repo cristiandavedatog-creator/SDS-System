@@ -6,16 +6,20 @@ import {
   Grid,
   Typography,
   Paper,
-  AppBar,
-  Toolbar,
 } from '@mui/material';
 import { LocalizationProvider, DatePicker } from '@mui/x-date-pickers';
 import { AdapterDayjs } from '@mui/x-date-pickers/AdapterDayjs';
 import { Autocomplete } from '@mui/material';
-import { useNavigate } from 'react-router-dom';
 import axios from 'axios';
 import dayjs from 'dayjs';
 import Swal from 'sweetalert2';
+import Header from '../../Components/Header';
+
+const navLinks = [
+  { label: 'Dashboard', path: '/admin' },
+  { label: 'Notices', path: '/editOrder' },
+  { label: 'Create Notice', path: '/createOrder' },
+];
 
 const CreateOrder = () => {
   const [formData, setFormData] = useState({
@@ -29,7 +33,6 @@ const CreateOrder = () => {
   const [districts, setDistricts] = useState([]);
   const [schools, setSchools] = useState([]);
   const [pdfFile, setPdfFile] = useState(null);
-  const navigate = useNavigate();
   const baseURL = import.meta.env.VITE_API_URL;
 
 useEffect(() => {
@@ -169,16 +172,7 @@ const handleSchoolChange = (event, newValue) => {
   return (
     <Box sx={{ minHeight: '100vh', bgcolor: '#f5f5f5' }}>
       {/* Header */}
-      <AppBar position="static">
-        <Toolbar>
-          <Typography variant="h6" sx={{ flexGrow: 1 }}>
-            Admin - Create Notice
-          </Typography>
-          <Button color="inherit" onClick={() => navigate('/admin')}>Dashboard</Button>
-          <Button color="inherit" onClick={() => navigate('/editOrder')}>Notices</Button>
-          <Button color="inherit" onClick={() => navigate('/createOrder')}>Create Notice</Button>
-        </Toolbar>
-      </AppBar>
+      <Header title="Admin - Create Notice" navLinks={navLinks} showLogout />
 
       {/* Form */}
       <Box sx={{ maxWidth: 830, margin: 'auto', padding: 4, display: 'flex', justifyContent: 'space-between' }}>

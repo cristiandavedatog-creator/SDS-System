@@ -1,15 +1,21 @@
 import React, { useEffect, useState, useRef } from 'react';
-import { useNavigate } from 'react-router-dom';
 import {
   Box, Typography, Table, TableBody, TableCell,
   TableContainer, TableHead, TableRow, Paper,
   IconButton, Dialog, DialogTitle, DialogContent,
   DialogActions, TextField, Button, FormControl,
-  Select, MenuItem, InputLabel, AppBar, Toolbar, TableSortLabel
+  Select, MenuItem, InputLabel, TableSortLabel
 } from '@mui/material';
 import { Edit, Delete } from '@mui/icons-material';
 import axios from 'axios';
 import Swal from 'sweetalert2';
+import Header from '../../Components/Header';
+
+const navLinks = [
+  { label: 'Dashboard', path: '/admin' },
+  { label: 'Appointments', path: '/editAppointment' },
+  { label: 'Add Appointments', path: '/createAppointment' },
+];
 
 const showSwal = (options) => {
   Swal.fire({
@@ -30,7 +36,6 @@ const EditAppointment = () => {
   const [editing, setEditing] = useState(null);
   const [open, setOpen] = useState(false);
   const [confirmationDialog, setConfirmationDialog] = useState({ open: false, message: '', success: false });
-  const navigate = useNavigate();
   const [sortOrder, setSortOrder] = useState('asc');
   const baseURL = import.meta.env.VITE_API_URL;
 const searchInputRef = useRef(null);
@@ -221,16 +226,7 @@ const handleSort = (column) => {
 
   return (
     <Box sx={{ width: '100%', height: '100vh', display: 'flex', flexDirection: 'column', alignContent: 'center' }}>
-      <AppBar position="static">
-        <Toolbar>
-          <Typography variant="h6" sx={{ flexGrow: 1 }}>
-            Admin Appointments
-          </Typography>
-          <Button color="inherit" onClick={() => navigate('/admin')}>Dashboard</Button>
-          <Button color="inherit" onClick={() => navigate('/editAppointment')}>Appointments</Button>
-          <Button color="inherit" onClick={() => navigate('/createAppointment')}>Add Appointments</Button>
-        </Toolbar>
-      </AppBar>
+      <Header title="Admin Appointments" navLinks={navLinks} showLogout />
 
       <Box sx={{ maxWidth: 'auto', display: 'flex', flexDirection: 'column', justifyContent: 'center', alignItems: 'center', padding: 2 }}>
         <Typography variant="h5" gutterBottom>

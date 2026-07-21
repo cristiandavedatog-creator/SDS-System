@@ -1,14 +1,20 @@
 import React, { useEffect, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
 import {
   Box, Typography, Table, TableBody, TableCell,
   TableContainer, TableHead, TableRow, Paper,
   IconButton, Dialog, DialogTitle, DialogContent,
   DialogActions, TextField, Button, FormControl,
-  Select, MenuItem, InputLabel, AppBar, Toolbar, Autocomplete, TableSortLabel
+  Select, MenuItem, InputLabel, Autocomplete, TableSortLabel
 } from '@mui/material';
 import { Edit, Delete } from '@mui/icons-material';
 import axios from 'axios';
+import Header from '../../Components/Header';
+
+const navLinks = [
+  { label: 'Dashboard', path: '/admin' },
+  { label: 'Notices', path: '/editOrder' },
+  { label: 'Add Notice', path: '/createOrder' },
+];
 
 const EditOrder = () => {
   const [orders, setOrders] = useState([]);
@@ -17,7 +23,6 @@ const EditOrder = () => {
   const [searchTerm, setSearchTerm] = useState('');
   const [editing, setEditing] = useState(null);
   const [open, setOpen] = useState(false);
-  const navigate = useNavigate();
   const baseURL = import.meta.env.VITE_API_URL;
 
   const API = `${baseURL}/api`;
@@ -161,16 +166,7 @@ const handleSort = (column) => {
   return (
     <Box sx={{ width: '100%', height: '100vh', display: 'flex', flexDirection: 'column', alignContent: 'center' }}>
       {/* Header with Navbar */}
-      <AppBar position="static">
-        <Toolbar>
-          <Typography variant="h6" sx={{ flexGrow: 1 }}>
-            Admin Notice
-          </Typography>
-          <Button color="inherit" onClick={() => navigate('/admin')}>Dashboard</Button>
-          <Button color="inherit" onClick={() => navigate('/editOrder')}>Notices</Button>
-          <Button color="inherit" onClick={() => navigate('/createOrder')}>Add Notice</Button>
-        </Toolbar>
-      </AppBar>
+      <Header title="Admin Notice" navLinks={navLinks} showLogout />
 
       <Box sx={{ maxWidth: 'auto', display: 'flex', flexDirection: 'column', justifyContent: 'center', alignItems: 'center', padding: 2 }}>
         <Typography variant="h5" gutterBottom>

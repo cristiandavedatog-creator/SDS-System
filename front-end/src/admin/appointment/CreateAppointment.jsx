@@ -9,13 +9,17 @@ import {
   InputLabel,
   Select,
   MenuItem,
-  AppBar,
-  Toolbar,
 } from '@mui/material';
 import axios from 'axios';
 import BulkAppointmentUpload from '../AdminComponents/BulkAppointment';
-import { useNavigate } from 'react-router-dom';
+import Header from '../../Components/Header';
 import Swal from 'sweetalert2'; // Import SweetAlert2
+
+const navLinks = [
+  { label: 'Dashboard', path: '/admin' },
+  { label: 'Appointments', path: '/editAppointment' },
+  { label: 'Add Appointments', path: '/createAppointment' },
+];
 
 const CreateAppointment = () => {
   const [pdfFile, setPdfFile] = useState(null);
@@ -31,8 +35,6 @@ const CreateAppointment = () => {
     remarks: '',
   });
   const baseURL = import.meta.env.VITE_API_URL;
-
-  const navigate = useNavigate();
 
   const handleChange = (e) => {
     const upperCaseValue = e.target.value.toUpperCase(); // Convert input to uppercase
@@ -201,16 +203,7 @@ const handleSubmit = async (e) => {
   return (
     <Box>
       {/* Header with Navbar */}
-      <AppBar position="static">
-        <Toolbar>
-          <Typography variant="h6" sx={{ flexGrow: 1 }}>
-            Admin Appointments
-          </Typography>
-          <Button color="inherit" onClick={() => navigate('/admin')}>Dashboard</Button>
-          <Button color="inherit" onClick={() => navigate('/editAppointment')}>Appointments</Button>
-          <Button color="inherit" onClick={() => navigate('/createAppointment')}>Add Appointments</Button>
-        </Toolbar>
-      </AppBar>
+      <Header title="Admin Appointments" navLinks={navLinks} showLogout />
 
       <Box sx={{ maxWidth: 855, margin: 'auto', padding: 4 }}>
         <Typography variant="h5" gutterBottom>

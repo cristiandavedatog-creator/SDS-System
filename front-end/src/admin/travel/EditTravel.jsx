@@ -99,12 +99,13 @@ const [editFile, setEditFile] = useState(null);
     <>
     <div className='absulute top-0 left-0 w-full'>
       <Header
-        text="Edit Travel"
+        title="Edit Travel"
         navLinks={[
           { label: 'Dashboard', path: '/admin' },
           { label: 'Travel List', path: '/editTravel' },
           { label: 'Create Travel', path: '/createTravel' },
         ]}
+        showLogout
       />
     </div>
     <Paper sx={{ p: 2 }}>

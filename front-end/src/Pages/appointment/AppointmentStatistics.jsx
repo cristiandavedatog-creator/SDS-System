@@ -3,26 +3,19 @@ import LineGraphAppointment from '../../Components/appointment_components/LineGr
 import OverviewAppointment from '../../Components/appointment_components/OverviewAppointment';
 import BarGraphAppointment from '../../Components/appointment_components/BarGraphAppoinment';
 import PieChartAppointment from '../../Components/appointment_components/PieChartAppointment';
-import { AppBar, Toolbar, Typography, Button } from '@mui/material';
-import { useNavigate } from 'react-router-dom';
+import Header from '../../Components/Header';
+
+const navLinks = [
+  { label: 'Dashboard', path: '/' },
+  { label: 'Appointments', path: '/appointmentDetails' },
+  { label: 'Statistics', path: '/appointmentStatistics' },
+];
 
 const AppointmentStatistics = () => {
-  const navigate = useNavigate();
-
   return (
     <div className="w-full  flex flex-col bg-white">
       {/* Header Section */}
-     <AppBar position="static"
-        sx={{ zIndex: (theme) => theme.zIndex.drawer + 1, backgroundColor: '#1e293b' }}>
-        <Toolbar>
-          <Typography variant="h6" sx={{ flexGrow: 1 }}>
-           Appointments Statistics
-          </Typography>
-          <Button color="inherit" onClick={() => navigate('/')}>Dashboard</Button>
-          <Button color="inherit" onClick={() => navigate('/appointmentDetails')}>Appointments</Button>
-          <Button color="inherit" onClick={() => navigate('/appointmentStatistics')}>Statistics</Button>
-        </Toolbar>
-      </AppBar>
+      <Header title="Appointments Statistics" navLinks={navLinks} />
       {/* Content Section */}
       <div className="flex flex-col w-full  flex-grow p-3 ">
         {/* Overview Section */}

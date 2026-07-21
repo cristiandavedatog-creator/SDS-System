@@ -2,13 +2,18 @@ import React, { useState, useEffect } from 'react';
 import {
   TextField, Button, Grid, Typography, Paper,
   Table, TableContainer, TableHead, TableRow, TableCell, TableBody,
-  AppBar, Toolbar, Box, CircularProgress,
+  Box, CircularProgress,
   Dialog, DialogTitle, DialogContent, DialogActions
 } from '@mui/material';
-import { useNavigate } from 'react-router-dom';
 import axios from 'axios';
 import * as XLSX from 'xlsx';
-  import Swal from 'sweetalert2';
+import Swal from 'sweetalert2';
+import Header from '../../Components/Header';
+
+const navLinks = [
+  { label: 'Dashboard', path: '/admin' },
+  { label: 'Employees', path: '/employees' },
+];
 const showSwal = (options) => {
   Swal.fire({
     ...options,
@@ -37,7 +42,6 @@ const CreateEmployee = () => {
   const [openFormModal, setOpenFormModal] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const baseURL = import.meta.env.VITE_API_URL;
-  const navigate = useNavigate();
 
   const handleOpenCreateModal = () => {
     setFormData({ uid: null, fullName: '', office: '', positionTitle: '', initial: '' });
@@ -240,14 +244,7 @@ const CreateEmployee = () => {
   return (
     <Box>
       {/* Navbar */}
-      <AppBar position="static">
-        <Toolbar>
-          <Typography variant="h6" sx={{ flexGrow: 1 }}>
-            Employee
-          </Typography>
-          <Button color="inherit" onClick={() => navigate('/admin')}>Dashboard</Button>
-        </Toolbar>
-      </AppBar>
+      <Header title="Employee" navLinks={navLinks} showLogout />
 
       {/* Employee List and Add Button */}
       <Paper style={{ padding: 20, maxWidth: 800, margin: '20px auto' }}>

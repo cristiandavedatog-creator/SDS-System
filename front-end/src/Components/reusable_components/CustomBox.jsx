@@ -1,7 +1,7 @@
 import { Box, Typography } from '@mui/material';
 import React from 'react';
 
-const CustomBox = ({ text, number, icon, bgColor = '#fffff', borderColor = '#2ECC71' }) => {
+const CustomBox = ({ text, number, icon, bgColor = '#ffffff', borderColor = '#2ECC71' }) => {
   return (
     <Box
       sx={{

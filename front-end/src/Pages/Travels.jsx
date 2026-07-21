@@ -1,27 +1,19 @@
-import React, { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import React from 'react';
 import TravelDetails from '../Components/TravelDetails';
-import { AppBar, Toolbar, Typography, Button } from '@mui/material';
+import Header from '../Components/Header';
+
+const navLinks = [
+  { label: 'Dashboard', path: '/' },
+  { label: 'Travels', path: '/travels' },
+  { label: 'Statistics', path: '/statistics' },
+];
 
 const Travels = () => {
-
-  const navigate = useNavigate();
-
   return (
     <>
       <main className="w-full min-h-screen flex flex-col bg-white">
         {/* Header Section */}
-        <AppBar position="static"
-        sx={{ zIndex: (theme) => theme.zIndex.drawer + 1, backgroundColor: '#1e293b' }}>
-        <Toolbar>
-          <Typography variant="h6" sx={{ flexGrow: 1 }}>
-          Travel List
-          </Typography>
-          <Button color="inherit" onClick={() => navigate('/')}>Dashboard</Button>
-          <Button color="inherit" onClick={() => navigate('/travels')}>Travels</Button>
-          <Button color="inherit" onClick={() => navigate('/statistics')}>Statistics</Button>
-        </Toolbar>
-      </AppBar>
+        <Header title="Travel List" navLinks={navLinks} />
         {/* Main Content */}
         <div className="flex  justify-center gap-3 mt-3 px-5">
           {/* Sidebar */}

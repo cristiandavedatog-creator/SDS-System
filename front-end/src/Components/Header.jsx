@@ -1,38 +1,51 @@
 import React from 'react';
+import { AppBar, Toolbar, Typography, Button, Box } from '@mui/material';
+import { Logout } from '@mui/icons-material';
 import { useNavigate, useLocation } from 'react-router-dom';
+import { logout } from '../auth/authClient';
 
-const Header = ({ icon, imgSrc, text, navLinks = [] }) => {
+const Header = ({ text, title, navLinks = [], showLogout = false }) => {
   const navigate = useNavigate();
-  const location = useLocation(); // Get the current path
+  const location = useLocation();
 
-  const handleNavigation = (path) => {
-    navigate(path); // Navigate to the specified path
+  const handleLogout = () => {
+    logout();
+    navigate('/login');
   };
 
   return (
-    <div className="w-full h-auto flex items-center justify-between py-4 px-6 bg-white shadow-md z-10">
-      {/* Left Section: Icon/Image and Text */}
-      <div className="flex items-center space-x-4">
-        {icon && <div className="text-3xl text-blue-500">{icon}</div>}
-        {imgSrc && <img src={imgSrc} alt="header-icon" className="w-12 h-12 object-contain" />}
-        <h1 className="text-2xl font-bold text-gray-800">{text}</h1>
-      </div>
-
-      {/* Right Section: Navigation Links */}
-      <div className="flex items-center space-x-4">
-        {navLinks.map((link, idx) => (
-          <button
-            key={idx}
-            onClick={() => handleNavigation(link.path)}
-            className={`font-medium border border-gray-300 rounded-md px-5 py-1 ${
-              location.pathname === link.path ? 'text-blue-500' : 'text-black hover:text-blue-700'
-            }`}
-          >
-            {link.label}
-          </button>
-        ))}
-      </div>
-    </div>
+    <AppBar position="static" sx={{ backgroundColor: '#1e293b', width: '100%' }}>
+      <Toolbar sx={{ flexWrap: 'wrap', gap: 1 }}>
+        <Typography variant="h6" sx={{ flexGrow: 1 }}>
+          {title || text}
+        </Typography>
+        <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.5 }}>
+          {navLinks.map((link) => {
+            const active = location.pathname === link.path;
+            return (
+              <Button
+                key={link.path}
+                color="inherit"
+                onClick={() => navigate(link.path)}
+                sx={{
+                  borderRadius: 0,
+                  borderBottom: active ? '2px solid #38bdf8' : '2px solid transparent',
+                  fontWeight: active ? 700 : 400,
+                  opacity: active ? 1 : 0.85,
+                }}
+              >
+                {link.label}
+              </Button>
+            );
+          })}
+        </Box>
+        {showLogout && (
+          <Button color="inherit" startIcon={<Logout />} onClick={handleLogout}>
+            Log out
+          </Button>
+        )}
+      </Toolbar>
+    </AppBar>
   );
 };
 
