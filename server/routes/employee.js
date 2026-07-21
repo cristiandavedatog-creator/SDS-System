@@ -1,6 +1,7 @@
 const express = require('express');
-const db = require('../db'); 
+const db = require('../db');
 const router = express.Router();
+const requireAuth = require('../middleware/auth');
 
 
 
@@ -42,7 +43,7 @@ router.get('/employees/:id', (req, res) => {
 /* =====================================================
    CREATE EMPLOYEE
    ===================================================== */
-router.post('/employees', (req, res) => {
+router.post('/employees', requireAuth, (req, res) => {
   const { fullName, office, positionTitle, initial } = req.body;
   const employeeData = { fullName, office, positionTitle, initial };
 
@@ -71,7 +72,7 @@ router.post('/employees', (req, res) => {
 /* =====================================================
    BULK CREATE EMPLOYEES
    ===================================================== */
-router.post('/employees/bulk', (req, res) => {
+router.post('/employees/bulk', requireAuth, (req, res) => {
   const employees = req.body;
   if (!Array.isArray(employees) || employees.length === 0) {
     return res.status(400).json({ error: 'Invalid input: Array of employees required' });
@@ -105,7 +106,7 @@ router.post('/employees/bulk', (req, res) => {
 /* =====================================================
    UPDATE EMPLOYEE
    ===================================================== */
-router.put('/employees/:id', (req, res) => {
+router.put('/employees/:id', requireAuth, (req, res) => {
   const { id } = req.params;
   if (isNaN(Number(id))) return res.status(400).json({ error: 'Invalid ID format' });
 
@@ -138,7 +139,7 @@ router.put('/employees/:id', (req, res) => {
 /* =====================================================
    DELETE EMPLOYEE
    ===================================================== */
-router.delete('/employees/:id', (req, res) => {
+router.delete('/employees/:id', requireAuth, (req, res) => {
   const { id } = req.params;
   if (isNaN(Number(id))) return res.status(400).json({ error: 'Invalid ID format' });
 

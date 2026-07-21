@@ -3,8 +3,10 @@ const router = express.Router();
 const db = require('../db');
 const path = require('path');
 const fs = require('fs');
+const crypto = require('crypto');
 const multer = require('multer');
 const XLSX = require('xlsx');
+const requireAuth = require('../middleware/auth');
 
 // Multer setup for PDF uploads
 const storage = multer.diskStorage({
@@ -14,10 +16,30 @@ const storage = multer.diskStorage({
     cb(null, dir);
   },
   filename: function (req, file, cb) {
-    cb(null, Date.now() + '-' + file.originalname);
+    cb(null, `${Date.now()}-${crypto.randomUUID()}${path.extname(file.originalname).toLowerCase()}`);
   }
 });
-const upload = multer({ storage });
+const upload = multer({
+  storage,
+  limits: { fileSize: 10 * 1024 * 1024 },
+  fileFilter: (req, file, cb) => {
+    if (file.mimetype !== 'application/pdf') {
+      return cb(new Error('Only PDF files are allowed.'));
+    }
+    cb(null, true);
+  }
+});
+const bulkUpload = multer({
+  storage,
+  limits: { fileSize: 10 * 1024 * 1024 },
+  fileFilter: (req, file, cb) => {
+    const ext = path.extname(file.originalname).toLowerCase();
+    if (!['.xlsx', '.xls', '.csv'].includes(ext)) {
+      return cb(new Error('Only Excel/CSV files are allowed.'));
+    }
+    cb(null, true);
+  }
+});
 
 // ----------------- ROUTES -----------------
 
@@ -60,7 +82,7 @@ router.get('/appointments', (req, res) => {
 });
 
 // Remarks endpoint
-router.put('/appointment/:id/remarks', (req, res) => {
+router.put('/appointment/:id/remarks', requireAuth, (req, res) => {
   const { remarks } = req.body;
   const id = req.params.id;
 
@@ -72,7 +94,7 @@ router.put('/appointment/:id/remarks', (req, res) => {
 });
 
 // Release appointment
-router.post('/appointment/:id/release', (req, res) => {
+router.post('/appointment/:id/release', requireAuth, (req, res) => {
   const id = req.params.id;
 
   const sqlCheck = 'SELECT id FROM `appointment_details` WHERE id = ?';
@@ -112,7 +134,7 @@ router.get('/appointment/:id/release-info', (req, res) => {
 
 
 // Create appointment (with optional PDF)
-router.post('/appointment', upload.single('pdf'), (req, res) => {
+router.post('/appointment', requireAuth, upload.single('pdf'), (req, res) => {
   console.log('Request Body:', req.body); // Log the request body
   console.log('Uploaded File:', req.file); // Log the uploaded file
 
@@ -172,7 +194,7 @@ router.post('/appointment', upload.single('pdf'), (req, res) => {
 });
 
 // Update appointment (with optional PDF replacement)
-router.put('/appointment/:id', upload.single('pdf'), (req, res) => {
+router.put('/appointment/:id', requireAuth, upload.single('pdf'), (req, res) => {
   const id = req.params.id;
 
   // Extract fields from request body
@@ -275,7 +297,7 @@ router.put('/appointment/:id', upload.single('pdf'), (req, res) => {
 });
 
 // Update releasedAt for an appointment
-router.put('/appointment/:id/release', (req, res) => {
+router.put('/appointment/:id/release', requireAuth, (req, res) => {
   const id = req.params.id;
   const { releasedAt } = req.body;
 
@@ -302,7 +324,7 @@ router.put('/appointment/:id/release', (req, res) => {
 });
 
 // Delete appointment + delete PDF if exists
-router.delete('/appointment/:id', (req, res) => {
+router.delete('/appointment/:id', requireAuth, (req, res) => {
   const id = req.params.id;
 
   const getSql = 'SELECT pdfPath FROM `appointment_details` WHERE id = ?';
@@ -331,7 +353,7 @@ router.delete('/appointment/:id', (req, res) => {
 });
 
 // Bulk insert (Excel/CSV file)
-router.post('/appointments/bulk', upload.single('file'), (req, res) => {
+router.post('/appointments/bulk', requireAuth, bulkUpload.single('file'), (req, res) => {
   if (!req.file) return res.status(400).json({ error: 'No file uploaded.' });
 
   try {
@@ -377,7 +399,7 @@ const values = filteredData.map(row => [
 });
 
 // Bulk insert from JSON
-router.post('/appointments/bulk-json', (req, res) => {
+router.post('/appointments/bulk-json', requireAuth, (req, res) => {
   const appointments = req.body;
 
   if (!Array.isArray(appointments) || appointments.length === 0) {
@@ -412,7 +434,7 @@ router.post('/appointments/bulk-json', (req, res) => {
 });
 
 // Bulk upsert: update if exists (by ItemNo), insert if not
-router.post('/appointments/bulk-update', (req, res) => {
+router.post('/appointments/bulk-update', requireAuth, (req, res) => {
   let appointments = req.body;
 
   if (!Array.isArray(appointments) || appointments.length === 0) {
@@ -470,82 +492,34 @@ router.post('/appointments/bulk-update', (req, res) => {
 
 
 
+router.post('/check-existence', (req, res) => {
+  const { name, itemNo } = req.body;
 
-// Release appointment
-router.post('/appointment/:id/release', (req, res) => {
-  const id = req.params.id;
-
-  const sqlCheck = 'SELECT id FROM `appointment_details` WHERE id = ?';
-  db.query(sqlCheck, [id], (err, results) => {
-    if (err) return res.status(500).json({ error: 'Database error during check.' });
-    if (results.length === 0) return res.status(404).json({ error: 'Appointment not found.' });
-
-    const sqlInsert = `
-      INSERT INTO \`appointment_releases\` (appointmentId, releasedAt)
-      VALUES (?, NOW())
-    `;
-
-    db.query(sqlInsert, [id], (insertErr) => {
-      if (insertErr) return res.status(500).json({ error: 'Database error during release.' });
-      res.status(200).json({ message: 'Appointment released successfully!' });
+  if (!name && !itemNo) {
+    return res.status(400).json({
+      error: 'Both name and itemNo are required for validation.',
     });
-  });
-});
+  }
 
-// Get release information
-router.get('/appointment/:id/release-info', (req, res) => {
-  const id = req.params.id;
-
-  const sql = `
-    SELECT releasedAt
-    FROM \`appointment_releases\`
-    WHERE appointmentId = ?
-  `;
-
-  db.query(sql, [id], (err, results) => {
-    if (err) return res.status(500).json({ error: 'Database error.' });
-    if (results.length === 0) return res.status(404).json({ error: 'No release information found for this appointment.' });
-
-    res.status(200).json({ releasedAt: results[0].releasedAt });
-  });
-});
-
-router.post('/check-existence', async (req, res) => {
-  try {
-    const { name, itemNo } = req.body;
-
-    // Ensure required fields are provided
-    if (!name && !itemNo) {
-      return res.status(400).json({
-        error: 'Both name and itemNo are required for validation.',
-      });
+  const sql = 'SELECT id FROM `appointment_details` WHERE `Name` = ? OR `ItemNo` = ?';
+  db.query(sql, [name, itemNo], (err, results) => {
+    if (err) {
+      console.error('Error checking appointment existence:', err);
+      return res.status(500).json({ error: 'Internal server error. Please try again later.' });
     }
 
-    // Query to check for existence
-    const [rows] = await db.query(
-      `SELECT * FROM appointments WHERE name = ? OR itemNo = ?`,
-      [name, itemNo]
-    );
-
-    // If a matching record is found
-    if (rows.length > 0) {
+    if (results.length > 0) {
       return res.status(200).json({
         exists: true,
         message: 'An appointment with this Name or Item No. already exists.',
       });
     }
 
-    // If no matching record is found
     return res.status(200).json({
       exists: false,
       message: 'No duplicate appointment found.',
     });
-  } catch (error) {
-    console.error('Error checking appointment existence:', error);
-    return res.status(500).json({
-      error: 'Internal server error. Please try again later.',
-    });
-  }
+  });
 });
 
 module.exports = router;

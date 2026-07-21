@@ -3,24 +3,33 @@ const router = express.Router();
 const db = require('../db'); // Assumes a database connection module is available
 const path = require('path');
 const fs = require('fs');
+const crypto = require('crypto');
 const multer = require('multer');
-const XLSX = require('xlsx');
+const requireAuth = require('../middleware/auth');
 
 // Multer configuration for file uploads
 const storage = multer.diskStorage({
   destination: (req, file, cb) => {
-    const uploadPath = 'uploads/order'; // Directory to store uploaded PDF files
+    const uploadPath = path.join(__dirname, '..', 'uploads', 'order'); // Directory to store uploaded PDF files
     // Ensure the directory exists
     fs.mkdirSync(uploadPath, { recursive: true });
     cb(null, uploadPath);
   },
   filename: (req, file, cb) => {
-    const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
-    cb(null, uniqueSuffix + path.extname(file.originalname)); // Unique filename with original file extension
+    cb(null, `${Date.now()}-${crypto.randomUUID()}${path.extname(file.originalname).toLowerCase()}`);
   },
 });
 
-const upload = multer({ storage: storage });
+const upload = multer({
+  storage,
+  limits: { fileSize: 10 * 1024 * 1024 },
+  fileFilter: (req, file, cb) => {
+    if (file.mimetype !== 'application/pdf') {
+      return cb(new Error('Only PDF files are allowed.'));
+    }
+    cb(null, true);
+  }
+});
 
 // GET all orders
 router.get('/orders', (req, res) => {
@@ -50,7 +59,7 @@ router.get('/orders', (req, res) => {
 });
 
 // Create order (with optional PDF)
-router.post('/orders', upload.single('pdf'), (req, res) => {
+router.post('/orders', requireAuth, upload.single('pdf'), (req, res) => {
   console.log('Request Body:', req.body);
   console.log('Uploaded File:', req.file);
 
@@ -102,7 +111,7 @@ router.post('/orders', upload.single('pdf'), (req, res) => {
 });
 
 // EDIT order by ID (with optional PDF update)
-router.put('/orders/:idorder', upload.single('pdf'), (req, res) => {
+router.put('/orders/:idorder', requireAuth, upload.single('pdf'), (req, res) => {
   const idorder = req.params.idorder;
 
   // Extract fields from request body
@@ -176,7 +185,7 @@ router.put('/orders/:idorder', upload.single('pdf'), (req, res) => {
 
 
 // Delete order + delete PDF if exists
-router.delete('/orders/:idorder', (req, res) => {
+router.delete('/orders/:idorder', requireAuth, (req, res) => {
   const idorder = req.params.idorder;
 
   console.log('Delete request received for idorder:', idorder); // Log incoming ID

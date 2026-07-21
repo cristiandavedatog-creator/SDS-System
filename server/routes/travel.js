@@ -1,9 +1,11 @@
 const express = require('express');
 const db = require('../db');
 const router = express.Router();
-const cache = require('../utils/cache');
 const multer = require('multer');
 const path = require('path');
+const fs = require('fs');
+const crypto = require('crypto');
+const requireAuth = require('../middleware/auth');
 // Get all travels
 router.get('/travels', (req, res) => {
   const sql = `
@@ -113,23 +115,25 @@ const storage = multer.diskStorage({
     cb(null, dir);
   },
   filename: (req, file, cb) => {
-    const safeName = file.originalname.replace(/\s+/g, '_');
-    cb(null, `${Date.now()}_${safeName}`);
+    cb(null, `${Date.now()}-${crypto.randomUUID()}${path.extname(file.originalname).toLowerCase()}`);
   }
 });
 
-
-const upload = multer({ storage });
-
-// Ensure `uploads/travels` directory exists
-const fs = require('fs');
-const uploadPath = path.join(__dirname, '..', 'uploads', 'travels');
-if (!fs.existsSync(uploadPath)) fs.mkdirSync(uploadPath, { recursive: true });
+const upload = multer({
+  storage,
+  limits: { fileSize: 10 * 1024 * 1024 },
+  fileFilter: (req, file, cb) => {
+    if (file.mimetype !== 'application/pdf') {
+      return cb(new Error('Only PDF files are allowed.'));
+    }
+    cb(null, true);
+  }
+});
 
 // Insert a new travel
 // Modify POST route to handle file
 // Insert a new travel with duplication check
-router.post('/travels', upload.single('attachment'), (req, res) => {
+router.post('/travels', requireAuth, upload.single('attachment'), (req, res) => {
   console.log('Received form data:', req.body);
   console.log('Received file:', req.file?.originalname);
 
@@ -186,7 +190,7 @@ router.post('/travels', upload.single('attachment'), (req, res) => {
 
 //admin edits
 // Update travel record with optional PDF upload
-router.put('/travels/:id', upload.single('attachment'), (req, res) => {
+router.put('/travels/:id', requireAuth, upload.single('attachment'), (req, res) => {
   const {
     PositionDesignation, Station, Destination,
     Purpose, Host, sof, Area, DatesFrom, DatesTo
@@ -219,7 +223,7 @@ router.put('/travels/:id', upload.single('attachment'), (req, res) => {
 });
 
 //delete travel record
-router.delete('/travels/:id', (req, res) => {
+router.delete('/travels/:id', requireAuth, (req, res) => {
   const sql = 'DELETE FROM travelauthority WHERE id = ?';
   db.query(sql, [req.params.id], (err, result) => {
     if (err) return res.status(500).json({ error: 'Failed to delete', details: err.message });

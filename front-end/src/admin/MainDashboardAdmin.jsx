@@ -1,7 +1,8 @@
 import React from 'react';
-import { Drawer, AppBar, Toolbar, Typography, List, ListItem, ListItemIcon, ListItemText, Box, CssBaseline } from '@mui/material';
-import { ModeOfTravel, Groups, Settings, BookmarkBorder, Badge } from '@mui/icons-material';
-import { Link } from 'react-router-dom';
+import { Drawer, AppBar, Toolbar, Typography, List, ListItem, ListItemIcon, ListItemText, Box, CssBaseline, Button } from '@mui/material';
+import { ModeOfTravel, Groups, Settings, BookmarkBorder, Badge, Logout } from '@mui/icons-material';
+import { Link, useNavigate } from 'react-router-dom';
+import { logout } from '../auth/authClient';
 
 const drawerWidth = 240;
 
@@ -14,6 +15,13 @@ const navItems = [
 ];
 
 const MainDashboardAdmin = () => {
+  const navigate = useNavigate();
+
+  const handleLogout = () => {
+    logout();
+    navigate('/login');
+  };
+
   return (
     <Box sx={{ display: 'flex' }}>
       <CssBaseline />
@@ -23,10 +31,13 @@ const MainDashboardAdmin = () => {
         position="fixed"
         sx={{ zIndex: (theme) => theme.zIndex.drawer + 1, backgroundColor: '#1e293b' }}
       >
-        <Toolbar>
+        <Toolbar sx={{ justifyContent: 'space-between' }}>
           <Typography variant="h6" noWrap component="div">
             DepEd Camarines Norte Admin
           </Typography>
+          <Button color="inherit" startIcon={<Logout />} onClick={handleLogout}>
+            Log out
+          </Button>
         </Toolbar>
       </AppBar>
 

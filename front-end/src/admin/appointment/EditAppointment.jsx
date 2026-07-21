@@ -418,7 +418,7 @@ const handleSort = (column) => {
                 <MenuItem value="PROMOTION">PROMOTION</MenuItem>
                 <MenuItem value="TRANSFER">TRANSFER</MenuItem>
                 <MenuItem value="REAPPOINTMENT">REAPPOINTMENT</MenuItem>
-                <MenuItem value="RE-EMPLOYMENT">RE-EMPLOYMENT</MenuItem>
+                <MenuItem value="REEMPLOYMENT">REEMPLOYMENT</MenuItem>
                 <MenuItem value="DEMOTION">DEMOTION</MenuItem>
                 <MenuItem value="RECLASSIFICATION">RECLASSIFICATION</MenuItem>
               </Select>
