@@ -1,3 +1,62 @@
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
+
+html {
+  scroll-behavior: smooth;
+}
+
+body {
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  text-rendering: optimizeLegibility;
+}
+
+/* Brand-tinted selection instead of the default OS blue. */
+::selection {
+  background-color: rgba(184, 128, 31, 0.25);
+  color: #1e293b;
+}
+
+/* Keyboard-focus ring in the brand accent — only shows for keyboard users. */
+:focus-visible {
+  outline: 2px solid #b8801f;
+  outline-offset: 2px;
+  border-radius: 4px;
+}
+
+/* Slim, brand-tinted scrollbar (WebKit/Blink). */
+::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background-color: rgba(30, 41, 59, 0.22);
+  border-radius: 999px;
+  border: 2px solid transparent;
+  background-clip: padding-box;
+}
+::-webkit-scrollbar-thumb:hover {
+  background-color: rgba(184, 128, 31, 0.45);
+}
+
+/* Firefox */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: rgba(30, 41, 59, 0.22) transparent;
+}
+
+/* Light-toned scrollbar variant for dark surfaces (e.g. the navy sidebar),
+   where the default dark thumb above would be nearly invisible. */
+.scrollbar-on-dark {
+  scrollbar-color: rgba(255, 255, 255, 0.25) transparent;
+}
+.scrollbar-on-dark::-webkit-scrollbar-thumb {
+  background-color: rgba(255, 255, 255, 0.25);
+}
+.scrollbar-on-dark::-webkit-scrollbar-thumb:hover {
+  background-color: rgba(255, 255, 255, 0.4);
+}

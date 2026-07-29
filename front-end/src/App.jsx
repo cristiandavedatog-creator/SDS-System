@@ -2,11 +2,9 @@ import React from 'react';
 import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
 import LogIn from './Pages/LogIn';
 import Travels from './Pages/Travels';
-import AdminDashboard from './admin/travel/CreateTravel';
 import Dashboard from './Pages/Dashboard';
 import Statistics from './Pages/Statistics';
 import MainDashboard from './Pages/MainDashboard';
-import AppointmentDashboard from './Pages/appointment/AppointmentDashboard';
 import CreateAppointment from './admin/appointment/CreateAppointment';
 import EditAppointment from './admin/appointment/EditAppointment';
 import AppointmentStatistics from './Pages/appointment/AppointmentStatistics';
@@ -17,7 +15,6 @@ import EditTravel from './admin/travel/EditTravel';
 import CreateOrder from './admin/order_admin/CreateOrder';
 import OrderDashboard from './Pages/order/OrderDashboard';
 import EditOrder from './admin/order_admin/EditOrder';
-import Footer from './Components/Footer'; // make sure path is correct
 import CreateEmployee from './admin/employee/CreateEmployees';
 import RequireAdmin from './auth/RequireAdmin';
 
@@ -57,7 +54,6 @@ const App = () => {
             <Route path="/employees" element={<RequireAdmin><CreateEmployee /></RequireAdmin>} />
           </Routes>
         </main>
-        <Footer className="fixed bottom-0 left-0 right-0" />
       </div>
     </Router>
   );

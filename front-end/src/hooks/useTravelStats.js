@@ -2,8 +2,8 @@ import { useEffect, useState } from 'react';
 import axios from 'axios';
 import dayjs from 'dayjs';
 
-// Shared by Navigator.jsx and Overview.jsx, which both used to fetch and
-// categorize the same /api/travels data independently.
+// Shared by Dashboard.jsx and Overview.jsx, which both need the same
+// /api/travels categorization (total/ongoing/upcoming/completed counts).
 export default function useTravelStats() {
   const [stats, setStats] = useState({ total: 0, ongoing: 0, upcoming: 0, completed: 0 });
   const baseURL = import.meta.env.VITE_API_URL;

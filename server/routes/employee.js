@@ -18,7 +18,7 @@ const validateEmployeeData = (data) => {
 
 
 router.get('/employees', (req, res) => {
-  const sql = 'SELECT * FROM `employee`';
+  const sql = 'SELECT * FROM `employee` ORDER BY uid DESC';
   db.query(sql, (err, results) => {
     if (err) return res.status(500).json({ error: 'Database error.' });
     res.status(200).json(results);
@@ -78,27 +78,48 @@ router.post('/employees/bulk', requireAuth, (req, res) => {
     return res.status(400).json({ error: 'Invalid input: Array of employees required' });
   }
 
-  const validatedEmployees = [];
   for (let i = 0; i < employees.length; i++) {
     const validation = validateEmployeeData(employees[i]);
     if (!validation.valid) {
       return res.status(400).json({ error: `Missing or invalid ${validation.field} for employee at index ${i}` });
     }
-    validatedEmployees.push([
-      employees[i].fullName,
-      employees[i].office,
-      employees[i].positionTitle,
-      employees[i].initial
-    ]);
   }
 
-  const sql = `INSERT INTO employee (fullName, office, positionTitle, Initial) VALUES ?`;
-  db.query(sql, [validatedEmployees], (err, result) => {
+  // Same duplicate rule as the single-create route (fullName OR Initial
+  // already on file), applied here too so bulk import can't silently create
+  // real duplicate people the way a plain INSERT would let it.
+  db.query('SELECT fullName, Initial FROM employee', (err, existingRows) => {
     if (err) return res.status(500).json({ error: 'Internal server error' });
-    res.status(201).json({
-      message: 'Employees created successfully',
-      affectedRows: result.affectedRows,
-      insertIds: Array.from({ length: result.affectedRows }, (_, i) => result.insertId + i)
+
+    const seenNames = new Set(existingRows.map((r) => r.fullName));
+    const seenInitials = new Set(existingRows.map((r) => r.Initial));
+
+    const validatedEmployees = [];
+    let skipped = 0;
+
+    for (const emp of employees) {
+      if (seenNames.has(emp.fullName) || seenInitials.has(emp.initial)) {
+        skipped++;
+        continue;
+      }
+      seenNames.add(emp.fullName);
+      seenInitials.add(emp.initial);
+      validatedEmployees.push([emp.fullName, emp.office, emp.positionTitle, emp.initial]);
+    }
+
+    if (validatedEmployees.length === 0) {
+      return res.status(200).json({ message: `No new employees to add. ${skipped} duplicate(s) skipped.`, affectedRows: 0, skipped });
+    }
+
+    const sql = `INSERT INTO employee (fullName, office, positionTitle, Initial) VALUES ?`;
+    db.query(sql, [validatedEmployees], (insertErr, result) => {
+      if (insertErr) return res.status(500).json({ error: 'Internal server error' });
+      res.status(201).json({
+        message: `Employees created successfully. ${skipped} duplicate(s) skipped.`,
+        affectedRows: result.affectedRows,
+        insertIds: Array.from({ length: result.affectedRows }, (_, i) => result.insertId + i),
+        skipped,
+      });
     });
   });
 });

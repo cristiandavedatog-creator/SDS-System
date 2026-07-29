@@ -6,9 +6,10 @@ import {
   Alert,
   InputAdornment,
   IconButton,
+  Tooltip,
   Typography,
 } from '@mui/material';
-import { Visibility, VisibilityOff } from '@mui/icons-material';
+import { Visibility, VisibilityOff, Login as LoginIcon } from '@mui/icons-material';
 import { login } from '../auth/authClient';
 
 const LogIn = () => {
@@ -39,18 +40,18 @@ const LogIn = () => {
   };
 
   return (
-    <main className="w-full min-h-screen flex justify-center items-center p-4 bg-gradient-to-r from-[#fffaf5] via-[#e7fdfd] to-[#aeeaf5] bg-cover bg-center">
-      <section className="w-full max-w-3xl bg-white/50 backdrop-blur-md border-green-500/30 border rounded-lg justify-center items-center space-x-5 flex flex-col">
-        <section className="flex items-center py-5 space-x-5 justify-start w-full px-5">
+    <main className="w-full min-h-screen flex justify-center items-center p-4 bg-brand-paper">
+      <section className="w-full max-w-3xl bg-white/60 backdrop-blur-md border-brand-navy/15 border rounded-2xl shadow-xl justify-center items-center space-x-5 flex flex-col">
+        <section className="flex items-center gap-4 py-6 justify-start w-full px-6 sm:px-8">
           <img
-            className="w-[50px] rounded-full"
+            className="w-12 h-12 rounded-full"
             src="./depEdCNLogo.png" alt="depedLogo" />
-          <h1 className="text-xl font-semibold">Database of Travel Authority</h1>
+          <h1 className="text-lg sm:text-xl font-semibold text-brand-navy">Database of Travel Authority</h1>
         </section>
-        <div className="flex justify-center items-center gap-5 p-5 flex-wrap md:flex-nowrap">
-          <section className="p-8 border-green-500/30 border rounded-xl shadow-lg max-w-sm w-full bg-white/80">
+        <div className="flex justify-center items-center gap-6 p-6 sm:p-8 pt-0 flex-wrap md:flex-nowrap">
+          <section className="p-8 border-brand-navy/10 border rounded-xl shadow-md max-w-sm w-full bg-white/90">
             <header>
-              <Typography variant="h5" className="mb-5 text-center font-bold" sx={{ mb: 3, textAlign: 'center', fontWeight: 700 }}>
+              <Typography variant="h5" sx={{ mb: 3, textAlign: 'center', fontWeight: 700, color: 'primary.main' }}>
                 Admin Log in
               </Typography>
             </header>
@@ -69,13 +70,15 @@ const LogIn = () => {
                 InputProps={{
                   endAdornment: (
                     <InputAdornment position="end">
-                      <IconButton
-                        aria-label={showPassword ? 'Hide password' : 'Show password'}
-                        onClick={() => setShowPassword((prev) => !prev)}
-                        edge="end"
-                      >
-                        {showPassword ? <VisibilityOff /> : <Visibility />}
-                      </IconButton>
+                      <Tooltip title={showPassword ? 'Hide password' : 'Show password'}>
+                        <IconButton
+                          aria-label={showPassword ? 'Hide password' : 'Show password'}
+                          onClick={() => setShowPassword((prev) => !prev)}
+                          edge="end"
+                        >
+                          {showPassword ? <VisibilityOff /> : <Visibility />}
+                        </IconButton>
+                      </Tooltip>
                     </InputAdornment>
                   ),
                 }}
@@ -89,8 +92,10 @@ const LogIn = () => {
                 type="submit"
                 fullWidth
                 variant="contained"
+                color="primary"
+                size="large"
                 disabled={submitting}
-                sx={{ backgroundColor: '#1e293b', '&:hover': { backgroundColor: '#334155' } }}
+                startIcon={!submitting && <LoginIcon />}
               >
                 {submitting ? 'Logging in...' : 'Log in'}
               </Button>

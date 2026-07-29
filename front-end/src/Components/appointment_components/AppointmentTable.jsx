@@ -1,7 +1,8 @@
 import React, { useEffect, useState } from 'react';
 import axios from 'axios';
+import Swal from 'sweetalert2';
 import {
-  Box, Typography, Table,  TableBody,  TableCell, TableContainer, TableHead, TableRow, Paper, CircularProgress, FormControl, Select,
+  Box, Typography, Table,  TableBody,  TableCell, TableContainer, TableHead, TableRow, Paper, FormControl, Select,
   MenuItem,
   InputLabel,
   TextField,
@@ -10,7 +11,13 @@ import {
   DialogActions,
   DialogContent,
   DialogTitle,
+  Grid,
+  Divider,
 } from '@mui/material';
+import { BRAND } from '../../theme/theme';
+import StatusChip from '../reusable_components/StatusChip';
+import EmptyState from '../reusable_components/EmptyState';
+import TableSkeleton from '../reusable_components/TableSkeleton';
 
 const AppointmentTable = ({ searchQuery, setSearchQuery }) => {
   const [appointments, setAppointments] = useState([]);
@@ -29,18 +36,25 @@ const AppointmentTable = ({ searchQuery, setSearchQuery }) => {
   const [viewDialogOpen, setViewDialogOpen] = useState(false);
   const [selectedAppointment, setSelectedAppointment] = useState(null);
   const [releaseInfo, setReleaseInfo] = useState(null);
+  const [detailsDialogOpen, setDetailsDialogOpen] = useState(false);
+  const [detailsRow, setDetailsRow] = useState(null);
+  const [sortMode, setSortMode] = useState('uploaded'); // 'uploaded' = API order (newest uploaded first) | 'dateSigned' = Date Signed
   const baseURL = import.meta.env.VITE_API_URL;
+
+  const handleViewDetails = (appointment) => {
+    setDetailsRow(appointment);
+    setDetailsDialogOpen(true);
+  };
 
   useEffect(() => {
     axios.get(`${baseURL}/api/appointments`)
       .then((res) => {
-        console.log('Debugging appointments:', res.data); // Debugging
         setAppointments(res.data);
         setLoading(false);
-        const uniquePositions = [...new Set(res.data.map(item => item.PositionTitle))];
-        const uniqueNature = [...new Set(res.data.map(item => item.NatureAppointment))];
-        const uniqueStatus = [...new Set(res.data.map(item => item.StatusOfAppointment))];
-        const uniqueDistricts = [...new Set(res.data.map(item => item.District))];
+        const uniquePositions = [...new Set(res.data.map(item => item.PositionTitle))].filter(Boolean);
+        const uniqueNature = [...new Set(res.data.map(item => item.NatureAppointment))].filter(Boolean);
+        const uniqueStatus = [...new Set(res.data.map(item => item.StatusOfAppointment))].filter(Boolean);
+        const uniqueDistricts = [...new Set(res.data.map(item => item.District))].filter(Boolean);
         setNatureOptions(uniqueNature);
         setStatusOptions(uniqueStatus);
         setDistrictOptions(uniqueDistricts);
@@ -81,7 +95,11 @@ const AppointmentTable = ({ searchQuery, setSearchQuery }) => {
       })
       .catch((err) => {
         console.error('Error releasing appointment:', err);
-        alert('Failed to release the appointment. Please try again.');
+        Swal.fire({
+          icon: 'error',
+          title: 'Release Failed',
+          text: 'Failed to release the appointment. Please try again.',
+        });
       });
   };
 
@@ -114,7 +132,11 @@ const AppointmentTable = ({ searchQuery, setSearchQuery }) => {
       })
       .catch((err) => {
         console.error('Error fetching release info:', err);
-        alert('Failed to fetch release information.');
+        Swal.fire({
+          icon: 'error',
+          title: 'Fetch Failed',
+          text: 'Failed to fetch release information.',
+        });
       });
   };
 
@@ -134,12 +156,12 @@ const AppointmentTable = ({ searchQuery, setSearchQuery }) => {
           ? !row.releasedAt
           : true; // Matches based on release status dropdown
       return matchesSearch && matchesNature && matchesStatus && matchesDistrict && matchesReleaseStatus && matchesPosition;
-    })
-    .sort((a, b) => {
-      const surnameA = a.Name.split(' ').slice(-1)[0].toLowerCase(); // Extract surname
-      const surnameB = b.Name.split(' ').slice(-1)[0].toLowerCase(); // Extract surname
-      return surnameA.localeCompare(surnameB); // Compare surnames alphabetically
     });
+
+  // 'uploaded' keeps the API's own order (newest record first); 'dateSigned' resorts by the appointment's Date Signed.
+  const sortedAppointments = sortMode === 'dateSigned'
+    ? [...filteredAppointments].sort((a, b) => new Date(b.DateSigned) - new Date(a.DateSigned))
+    : filteredAppointments;
 
   return (
     <Box sx={{ margin: 'auto', px: { xs: 1, sm: 2, md: 3 }, py: { xs: 1, sm: 2, md: 3 } }}>
@@ -155,7 +177,7 @@ const AppointmentTable = ({ searchQuery, setSearchQuery }) => {
         }}
       >
         <TextField
-          sx={{ minWidth: { xs: '100%', sm: 250, md: 350 }, maxWidth: 350, mb: { xs: 2, md: 0 } }}
+          sx={{ minWidth: { xs: '100%', sm: 220, md: 220 }, maxWidth: { md: 220 }, flexShrink: 0, mb: { xs: 2, md: 0 } }}
           value={searchQuery}
           onChange={(e) => setSearchQuery(e.target.value)}
           label="Search here"
@@ -165,13 +187,14 @@ const AppointmentTable = ({ searchQuery, setSearchQuery }) => {
         <Box
           sx={{
             display: 'flex',
-            flexWrap: 'wrap',
-            gap: 2,
+            flexWrap: { xs: 'wrap', md: 'nowrap' },
+            gap: 1.5,
             width: { xs: '100%', md: 'auto' },
             justifyContent: { xs: 'flex-start', md: 'flex-end' },
+            overflowX: { md: 'auto' },
           }}
         >
-          <FormControl sx={{ minWidth: 170, flex: 1, maxWidth: 170 }} size="small" fullWidth={true}>
+          <FormControl sx={{ minWidth: 140, flex: 1, maxWidth: 140 }} size="small" fullWidth={true}>
   <InputLabel>Position</InputLabel>
   <Select
     value={selectedPosition}
@@ -192,7 +215,7 @@ const AppointmentTable = ({ searchQuery, setSearchQuery }) => {
   </Select>
 </FormControl>
 
-          <FormControl sx={{ minWidth: 170, flex: 1, maxWidth: 170 }} size="small" fullWidth={true}>
+          <FormControl sx={{ minWidth: 140, flex: 1, maxWidth: 140 }} size="small" fullWidth={true}>
             <InputLabel>District</InputLabel>
             <Select
               value={selectedDistrict}
@@ -209,7 +232,7 @@ const AppointmentTable = ({ searchQuery, setSearchQuery }) => {
             </Select>
           </FormControl>
 
-          <FormControl sx={{ minWidth: 170, flex: 1, maxWidth: 170 }} size="small" fullWidth={true}>
+          <FormControl sx={{ minWidth: 140, flex: 1, maxWidth: 140 }} size="small" fullWidth={true}>
             <InputLabel>Status of Appointment</InputLabel>
             <Select
               value={selectedStatus}
@@ -225,7 +248,7 @@ const AppointmentTable = ({ searchQuery, setSearchQuery }) => {
               ))}
             </Select>
           </FormControl>
-          <FormControl sx={{ minWidth: 170, flex: 1, maxWidth: 170 }} size="small" fullWidth={true}>
+          <FormControl sx={{ minWidth: 140, flex: 1, maxWidth: 140 }} size="small" fullWidth={true}>
             <InputLabel>Nature of Appointment</InputLabel>
             <Select
               value={selectedNature}
@@ -241,7 +264,7 @@ const AppointmentTable = ({ searchQuery, setSearchQuery }) => {
               ))}
             </Select>
           </FormControl>
-          <FormControl sx={{ minWidth: 170, flex: 1, maxWidth: 170 }} size="small" fullWidth={true}>
+          <FormControl sx={{ minWidth: 140, flex: 1, maxWidth: 140 }} size="small" fullWidth={true}>
             <InputLabel>Release Status</InputLabel>
             <Select
               value={selectedReleaseStatus}
@@ -253,16 +276,22 @@ const AppointmentTable = ({ searchQuery, setSearchQuery }) => {
               <MenuItem value="Not Released">Not Released</MenuItem>
             </Select>
           </FormControl>
+          <FormControl sx={{ minWidth: 140, flex: 1, maxWidth: 140 }} size="small" fullWidth={true}>
+            <InputLabel>Sort By</InputLabel>
+            <Select
+              value={sortMode}
+              onChange={(e) => setSortMode(e.target.value)}
+              label="Sort By"
+            >
+              <MenuItem value="uploaded">Date Uploaded</MenuItem>
+              <MenuItem value="dateSigned">Date Signed</MenuItem>
+            </Select>
+          </FormControl>
         </Box>
       </Box>
 
       {/* Table */}
-      {loading ? (
-        <Box sx={{ display: 'flex', justifyContent: 'center', mt: 8 }}>
-          <CircularProgress />
-        </Box>
-      ) : (
-        <Box sx={{ width: '100%', maxWidth: '100%', overflowX: 'auto' }}>
+      <Box sx={{ width: '100%', maxWidth: '100%', overflowX: 'auto' }}>
           <TableContainer
             component={Paper}
             elevation={2}
@@ -274,7 +303,7 @@ const AppointmentTable = ({ searchQuery, setSearchQuery }) => {
           >
             <Table stickyHeader>
               <TableHead>
-                <TableRow sx={{ backgroundColor: '#f0f0f0' }}>
+                <TableRow>
                   <TableCell
                     sx={{
                       whiteSpace: 'nowrap',
@@ -282,8 +311,8 @@ const AppointmentTable = ({ searchQuery, setSearchQuery }) => {
                       textAlign: 'start',
                       position: 'sticky',
                       left: 0,
-                      backgroundColor: '#f0f0f0',
-                      zIndex: 1,
+                      backgroundColor: BRAND.tableHead,
+                      zIndex: 3,
                     }}
                   >
                     <strong>Name</strong>
@@ -299,21 +328,23 @@ const AppointmentTable = ({ searchQuery, setSearchQuery }) => {
                 </TableRow>
               </TableHead>
               <TableBody>
-                {filteredAppointments.length === 0 ? (
+                {loading ? (
+                  <TableSkeleton columns={9} />
+                ) : sortedAppointments.length === 0 ? (
                   <TableRow>
                     <TableCell colSpan={9} align="center">
-                      <Typography variant="body2" sx={{ py: 2 }}>
-                        No appointments found.
-                      </Typography>
+                      <EmptyState message="No appointments found" hint="Try adjusting your filters or search." />
                     </TableCell>
                   </TableRow>
                 ) : (
-                  filteredAppointments.map((row, index) => (
+                  sortedAppointments.map((row, index) => (
                     <TableRow
                       key={row.id} // Ensure `row.id` is unique
+                      hover
+                      onClick={() => handleViewDetails(row)}
                       sx={{
                         backgroundColor: index % 2 === 0 ? '#fafafa' : '#fff',
-                        '&:hover': { backgroundColor: '#f5f5f5' },
+                        cursor: 'pointer',
                       }}
                     >
                       <TableCell
@@ -330,7 +361,8 @@ const AppointmentTable = ({ searchQuery, setSearchQuery }) => {
                             href={`${baseURL}/${row.pdfPath}`}
                             target="_blank"
                             rel="noopener noreferrer"
-                            style={{ textDecoration: 'none', color: '#1976d2', fontWeight: 500 }}
+                            onClick={(e) => e.stopPropagation()}
+                            style={{ textDecoration: 'none', color: BRAND.navy, fontWeight: 500 }}
                           >
                             {row.Name}
                           </a>
@@ -339,10 +371,14 @@ const AppointmentTable = ({ searchQuery, setSearchQuery }) => {
                       <TableCell sx={{ whiteSpace: 'nowrap' }}>{row.PositionTitle}</TableCell>
                       <TableCell sx={{ whiteSpace: 'nowrap' }}>{row.SchoolOffice}</TableCell>
                       <TableCell sx={{ whiteSpace: 'nowrap', textAlign: 'start' }}>{row.District}</TableCell>
-                      <TableCell sx={{ whiteSpace: 'nowrap', textAlign: 'start' }}>{row.StatusOfAppointment}</TableCell>
+                      <TableCell sx={{ whiteSpace: 'nowrap', textAlign: 'start' }}>
+                        {row.StatusOfAppointment ? (
+                          <StatusChip label={row.StatusOfAppointment} statusKey={row.StatusOfAppointment} />
+                        ) : null}
+                      </TableCell>
                       <TableCell sx={{ whiteSpace: 'nowrap', textAlign: 'start' }}>{row.NatureAppointment}</TableCell>
                       <TableCell sx={{ whiteSpace: 'nowrap', textAlign: 'start' }}>
-                        {row.ItemNo?.replace(' ', '\n')}
+                        {row.ItemNo}
                       </TableCell>
                       <TableCell sx={{ whiteSpace: 'nowrap' }}>
   {row.DateSigned && !isNaN(new Date(row.DateSigned))
@@ -356,7 +392,7 @@ const AppointmentTable = ({ searchQuery, setSearchQuery }) => {
     : ''}
 </TableCell>
 
-                      <TableCell sx={{ whiteSpace: 'nowrap', textAlign: 'center' }}>
+                      <TableCell sx={{ whiteSpace: 'nowrap', textAlign: 'center' }} onClick={(e) => e.stopPropagation()}>
                         {row.releasedAt ? (
                           <Button
                             variant="contained"
@@ -384,13 +420,14 @@ const AppointmentTable = ({ searchQuery, setSearchQuery }) => {
             </Table>
           </TableContainer>
           {/* Total Data Count */}
-          <Box sx={{ mt: 2, textAlign: { xs: 'center', md: 'end' } }}>
-            <Typography variant="body1" sx={{ fontWeight: 'bold' }}>
-              Total Entries: {filteredAppointments.length}
-            </Typography>
-          </Box>
-        </Box>
-      )}
+          {!loading && (
+            <Box sx={{ mt: 2, textAlign: { xs: 'center', md: 'end' } }}>
+              <Typography variant="body1" sx={{ fontWeight: 'bold' }}>
+                Total Entries: {sortedAppointments.length}
+              </Typography>
+            </Box>
+          )}
+      </Box>
 
       {/* Release Confirmation Modal */}
       <Dialog
@@ -432,6 +469,101 @@ const AppointmentTable = ({ searchQuery, setSearchQuery }) => {
           <Button onClick={() => setViewDialogOpen(false)} color="primary">
             Close
           </Button>
+        </DialogActions>
+      </Dialog>
+
+      {/* Appointment Details Modal */}
+      <Dialog
+        open={detailsDialogOpen}
+        onClose={() => setDetailsDialogOpen(false)}
+        maxWidth="sm"
+        fullWidth
+      >
+        <DialogTitle>Appointment Details</DialogTitle>
+        <DialogContent>
+          {detailsRow && (
+            <Grid container spacing={2} sx={{ mt: 0.5 }}>
+              {[
+                ['Name', detailsRow.Name],
+                ['Position Title', detailsRow.PositionTitle],
+                ['School/Office', detailsRow.SchoolOffice],
+                ['District', detailsRow.District],
+                ['Item No.', detailsRow.ItemNo],
+                [
+                  'Date Signed',
+                  detailsRow.DateSigned && !isNaN(new Date(detailsRow.DateSigned))
+                    ? new Date(detailsRow.DateSigned).toLocaleDateString('en-US', {
+                        month: 'short',
+                        day: '2-digit',
+                        year: 'numeric',
+                      })
+                    : 'N/A',
+                ],
+              ].map(([label, value]) => (
+                <Grid size={6} key={label}>
+                  <Typography variant="caption" color="text.secondary">
+                    {label}
+                  </Typography>
+                  <Typography variant="body2">{value || 'N/A'}</Typography>
+                </Grid>
+              ))}
+
+              <Grid size={6}>
+                <Typography variant="caption" color="text.secondary">
+                  Status of Appointment
+                </Typography>
+                <Box sx={{ mt: 0.5 }}>
+                  {detailsRow.StatusOfAppointment ? (
+                    <StatusChip label={detailsRow.StatusOfAppointment} statusKey={detailsRow.StatusOfAppointment} />
+                  ) : (
+                    <Typography variant="body2">N/A</Typography>
+                  )}
+                </Box>
+              </Grid>
+              <Grid size={6}>
+                <Typography variant="caption" color="text.secondary">
+                  Nature of Appointment
+                </Typography>
+                <Typography variant="body2">{detailsRow.NatureAppointment || 'N/A'}</Typography>
+              </Grid>
+
+              <Grid size={12}>
+                <Divider />
+              </Grid>
+
+              <Grid size={6}>
+                <Typography variant="caption" color="text.secondary">
+                  Release Status
+                </Typography>
+                <Typography variant="body2">
+                  {detailsRow.releasedAt ? `Released (${detailsRow.releasedAt})` : 'Not released'}
+                </Typography>
+              </Grid>
+              <Grid size={6}>
+                <Typography variant="caption" color="text.secondary">
+                  Remarks
+                </Typography>
+                <Typography variant="body2">{detailsRow.remarks || 'None'}</Typography>
+              </Grid>
+
+              {detailsRow.pdfPath && (
+                <Grid size={12}>
+                  <Button
+                    href={`${baseURL}/${detailsRow.pdfPath}`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    variant="outlined"
+                    size="small"
+                  >
+                    View Attached PDF
+                  </Button>
+                </Grid>
+              )}
+            </Grid>
+          )}
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setDetailsDialogOpen(false)}>Close</Button>
         </DialogActions>
       </Dialog>
     </Box>

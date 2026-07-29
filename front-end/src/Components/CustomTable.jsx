@@ -1,28 +1,51 @@
 import React, { useState, useEffect } from 'react';
-import { 
-  Table, 
-  TableBody, 
-  TableCell, 
-  TableContainer, 
-  TableHead, 
-  TableRow, 
-  Paper, 
-  TablePagination,
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableContainer,
+  TableHead,
+  TableRow,
+  Paper,
   Typography,
-  Chip,
   Box,
-  CircularProgress,
-  Alert
+  Alert,
+  Dialog,
+  DialogTitle,
+  DialogContent,
+  DialogActions,
+  IconButton,
+  Button,
+  Divider,
+  Stack,
+  FormControl,
+  InputLabel,
+  Select,
+  MenuItem,
 } from '@mui/material';
+import CloseIcon from '@mui/icons-material/Close';
 import axios from 'axios';
 import dayjs from 'dayjs';
+import StatusChip from './reusable_components/StatusChip';
+import DetailRow from './reusable_components/DetailRow';
+import EmptyState from './reusable_components/EmptyState';
+import TableSkeleton from './reusable_components/TableSkeleton';
+import { TRAVEL_STATUS_COLORS } from '../theme/travelStatus';
 
-const CustomTable = ({ searchQuery }) => {
-  const [page, setPage] = useState(0);
-  const [rowsPerPage, setRowsPerPage] = useState(10);
+// Maps the MUI color name returned by getTravelStatus() to the shared
+// TRAVEL_STATUS_COLORS key used by StatusChip.
+const STATUS_KEY_BY_COLOR = {
+  error: 'upcoming',
+  success: 'completed',
+  primary: 'ongoing',
+};
+
+const CustomTable = ({ searchQuery, statusFilter = 'total' }) => {
   const [travels, setTravels] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+  const [selectedTravel, setSelectedTravel] = useState(null);
+  const [sortMode, setSortMode] = useState('uploaded'); // 'uploaded' = API order (newest uploaded first) | 'fileDate' = Travel Period date
   const baseURL = import.meta.env.VITE_API_URL ;
   
   // Fetch travel data from API
@@ -40,34 +63,6 @@ const CustomTable = ({ searchQuery }) => {
       });
   }, []);
 
-  // Filter travels based on search query - Enhanced version
-  const filteredTravels = travels.filter(travel => {
-    if (!searchQuery) return true;
-    
-    const query = searchQuery.toLowerCase();
-    
-    // Search across all fields in the travel object
-    return Object.entries(travel).some(([key, value]) => {
-      // Skip searching through non-string values or empty values
-      if (typeof value !== 'string' && typeof value !== 'number') return false;
-      if (value === null || value === undefined) return false;
-      
-      // Convert value to string and check if it includes the query
-      return String(value).toLowerCase().includes(query);
-    });
-  });
-
-  // Handle page change
-  const handleChangePage = (event, newPage) => {
-    setPage(newPage);
-  };
-
-  // Handle rows per page change
-  const handleChangeRowsPerPage = (event) => {
-    setRowsPerPage(parseInt(event.target.value, 10));
-    setPage(0);
-  };
-
   // Get travel status based on dates
   const getTravelStatus = (travel) => {
     const now = dayjs();
@@ -83,18 +78,38 @@ const CustomTable = ({ searchQuery }) => {
     }
   };
 
+  // Filter travels based on the selected status tile and the search query
+  const filteredTravels = travels.filter(travel => {
+    if (statusFilter !== 'total') {
+      const statusKey = STATUS_KEY_BY_COLOR[getTravelStatus(travel).color];
+      if (statusKey !== statusFilter) return false;
+    }
+
+    if (!searchQuery) return true;
+
+    const query = searchQuery.toLowerCase();
+
+    // Search across all fields in the travel object
+    return Object.values(travel).some((value) => {
+      // Skip searching through non-string values or empty values
+      if (typeof value !== 'string' && typeof value !== 'number') return false;
+      if (value === null || value === undefined) return false;
+
+      // Convert value to string and check if it includes the query
+      return String(value).toLowerCase().includes(query);
+    });
+  });
+
+  // Apply the chosen sort on top of the (already filtered) list.
+  // 'uploaded' keeps the API's own order (newest record first); 'fileDate' resorts by the travel's own date.
+  const sortedTravels = sortMode === 'fileDate'
+    ? [...filteredTravels].sort((a, b) => new Date(b.DatesFrom) - new Date(a.DatesFrom))
+    : filteredTravels;
+
   // Format date for display
   const formatDate = (dateString) => {
     return dayjs(dateString).format('MMM DD, YYYY');
   };
-
-  if (loading) {
-    return (
-      <Box display="flex" justifyContent="center" alignItems="center" minHeight="200px">
-        <CircularProgress />
-      </Box>
-    );
-  }
 
   if (error) {
     return (
@@ -104,36 +119,66 @@ const CustomTable = ({ searchQuery }) => {
     );
   }
 
+  // Tints the whole table board with a light wash of whichever status tile is active,
+  // so it's obvious at a glance that a filter is applied even without looking at the tiles.
+  const boardTint = statusFilter !== 'total' ? TRAVEL_STATUS_COLORS[statusFilter].bg : '#fff';
+
   return (
-    <Paper sx={{ width: '95%', overflow: 'hidden', mt: 2, mb: 4 }}>
-      <TableContainer sx={{ maxHeight: 440 }}>
+    <Paper
+      sx={{
+        width: '100%',
+        height: '100%',
+        display: 'flex',
+        flexDirection: 'column',
+        overflow: 'hidden',
+        backgroundColor: boardTint,
+        transition: 'background-color 0.25s ease',
+      }}
+    >
+      <Box sx={{ display: 'flex', justifyContent: 'flex-end', p: 1.5, pb: 0 }}>
+        <FormControl size="small" sx={{ minWidth: 190 }}>
+          <InputLabel>Sort by</InputLabel>
+          <Select value={sortMode} label="Sort by" onChange={(e) => setSortMode(e.target.value)}>
+            <MenuItem value="uploaded">Date Uploaded</MenuItem>
+            <MenuItem value="fileDate">Travel Date</MenuItem>
+          </Select>
+        </FormControl>
+      </Box>
+      <TableContainer sx={{ flex: 1, minHeight: 0, overflow: 'auto' }}>
         <Table stickyHeader aria-label="travel data table">
           <TableHead>
             <TableRow>
-              <TableCell sx={{ fontWeight: 'bold', backgroundColor: '#f5f5f5' }}>Name</TableCell>
-              <TableCell sx={{ fontWeight: 'bold', backgroundColor: '#f5f5f5' }}>Purpose</TableCell>
-              <TableCell sx={{ fontWeight: 'bold', backgroundColor: '#f5f5f5' }}>Destination</TableCell>
-              <TableCell sx={{ fontWeight: 'bold', backgroundColor: '#f5f5f5' }}>Travel Period</TableCell>
-              <TableCell sx={{ fontWeight: 'bold', backgroundColor: '#f5f5f5' }}>Status</TableCell>
+              <TableCell sx={{ position: 'sticky', left: 0, zIndex: 3 }}>Name</TableCell>
+              <TableCell>Purpose</TableCell>
+              <TableCell>Destination</TableCell>
+              <TableCell>Travel Period</TableCell>
+              <TableCell>Status</TableCell>
             </TableRow>
           </TableHead>
           <TableBody>
-            {filteredTravels
-              .slice(page * rowsPerPage, page * rowsPerPage + rowsPerPage)
+            {loading ? (
+              <TableSkeleton columns={5} />
+            ) : sortedTravels
               .map((travel, index) => {
                 const status = getTravelStatus(travel);
                 return (
-                  <TableRow hover key={index}>
-                    <TableCell sx={{ width: '20%', whiteSpace: 'nowrap' }}>
+                  <TableRow
+                    hover
+                    key={index}
+                    onClick={() => setSelectedTravel(travel)}
+                    sx={{ cursor: 'pointer' }}
+                  >
+                    <TableCell sx={{ width: '20%', whiteSpace: 'nowrap', position: 'sticky', left: 0, zIndex: 1, backgroundColor: boardTint, transition: 'background-color 0.25s ease' }}>
   {travel.fullname || 'N/A'}
 </TableCell>
                     <TableCell>
-  {travel.attachment ? (
-    <a 
-      href={`${baseURL}${travel.attachment}`} 
-      target="_blank" 
+  {travel.Attachment ? (
+    <a
+      href={`${baseURL}${travel.Attachment}`}
+      target="_blank"
       rel="noopener noreferrer"
-      style={{ color: 'blue', textDecoration: 'underline' }}
+      onClick={(e) => e.stopPropagation()}
+      className="text-brand-navy underline font-medium hover:text-brand-accent transition-colors"
     >
       {travel.Purpose || 'View PDF'}
     </a>
@@ -150,37 +195,85 @@ const CustomTable = ({ searchQuery }) => {
                         'N/A'}
                     </TableCell>
                     <TableCell>
-                      <Chip 
-                        label={status.label} 
-                        color={status.color} 
-                        size="small" 
-                        variant="outlined"
+                      <StatusChip
+                        label={status.label}
+                        statusKey={STATUS_KEY_BY_COLOR[status.color]}
                       />
                     </TableCell>
                   </TableRow>
                 );
               })}
-            {filteredTravels.length === 0 && (
+            {!loading && filteredTravels.length === 0 && (
               <TableRow>
-                <TableCell colSpan={6} align="center">
-                  <Typography variant="body1" py={3}>
-                    No travel records found
-                  </Typography>
+                <TableCell colSpan={5} align="center">
+                  <EmptyState message="No travel records found" />
                 </TableCell>
               </TableRow>
             )}
           </TableBody>
         </Table>
       </TableContainer>
-      <TablePagination
-        rowsPerPageOptions={[5, 10, 25, 50]}
-        component="div"
-        count={filteredTravels.length}
-        rowsPerPage={rowsPerPage}
-        page={page}
-        onPageChange={handleChangePage}
-        onRowsPerPageChange={handleChangeRowsPerPage}
-      />
+
+      <Dialog
+        open={Boolean(selectedTravel)}
+        onClose={() => setSelectedTravel(null)}
+        maxWidth="sm"
+        fullWidth
+      >
+        {selectedTravel && (
+          <>
+            <DialogTitle sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+              {selectedTravel.fullname || 'Travel Details'}
+              <IconButton onClick={() => setSelectedTravel(null)} size="small">
+                <CloseIcon />
+              </IconButton>
+            </DialogTitle>
+            <Divider />
+            <DialogContent>
+              <Stack spacing={1.5} sx={{ mt: 1 }}>
+                <DetailRow label="Status">
+                  <StatusChip
+                    label={getTravelStatus(selectedTravel).label}
+                    statusKey={STATUS_KEY_BY_COLOR[getTravelStatus(selectedTravel).color]}
+                  />
+                </DetailRow>
+                <DetailRow label="Position" value={selectedTravel.PositionDesignation} />
+                <DetailRow label="Station" value={selectedTravel.Station} />
+                <DetailRow label="Purpose" value={selectedTravel.Purpose} />
+                <DetailRow label="Host" value={selectedTravel.Host} />
+                <DetailRow label="Destination" value={selectedTravel.Destination} />
+                <DetailRow
+                  label="Travel Period"
+                  value={
+                    selectedTravel.DatesFrom && selectedTravel.DatesTo
+                      ? `${formatDate(selectedTravel.DatesFrom)} - ${formatDate(selectedTravel.DatesTo)}`
+                      : 'N/A'
+                  }
+                />
+                <DetailRow label="Source of Fund" value={selectedTravel.sof} />
+                <DetailRow label="Area" value={selectedTravel.Area} />
+                <DetailRow label="Attachment">
+                  {selectedTravel.Attachment ? (
+                    <a
+                      href={`${baseURL}${selectedTravel.Attachment}`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="text-brand-navy underline font-medium hover:text-brand-accent transition-colors"
+                    >
+                      View PDF
+                    </a>
+                  ) : (
+                    <Typography variant="body2" color="text.secondary">None</Typography>
+                  )}
+                </DetailRow>
+              </Stack>
+            </DialogContent>
+            <DialogActions sx={{ p: 2 }}>
+              <Button onClick={() => setSelectedTravel(null)}>Close</Button>
+            </DialogActions>
+          </>
+        )}
+      </Dialog>
     </Paper>
   );
 };

@@ -4,18 +4,17 @@ import {
   TableContainer, TableHead, TableRow, Paper,
   IconButton, Dialog, DialogTitle, DialogContent,
   DialogActions, TextField, Button, FormControl,
-  Select, MenuItem, InputLabel, TableSortLabel
+  Select, MenuItem, InputLabel, TableSortLabel,
+  InputAdornment, Tooltip, Link
 } from '@mui/material';
-import { Edit, Delete } from '@mui/icons-material';
+import { Edit, Delete, Search as SearchIcon, Save as SaveIcon, UploadFile as UploadFileIcon } from '@mui/icons-material';
 import axios from 'axios';
 import Swal from 'sweetalert2';
-import Header from '../../Components/Header';
-
-const navLinks = [
-  { label: 'Dashboard', path: '/admin' },
-  { label: 'Appointments', path: '/editAppointment' },
-  { label: 'Add Appointments', path: '/createAppointment' },
-];
+import AppShell from '../../Components/AppShell';
+import StatusChip from '../../Components/reusable_components/StatusChip';
+import EmptyState from '../../Components/reusable_components/EmptyState';
+import TableSkeleton from '../../Components/reusable_components/TableSkeleton';
+import { ADMIN_APPOINTMENT_NAV_LINKS } from '../../config/navLinks';
 
 const showSwal = (options) => {
   Swal.fire({
@@ -29,18 +28,22 @@ const showSwal = (options) => {
   });
 };
 
-const EditAppointment = () => {
+// Exported separately so the admin dashboard can render this content inline
+// (inside its container-transform overlay) without a nested AppShell. All
+// state/logic/data-fetching below is unchanged from the original component.
+export const EditAppointmentContent = () => {
   const [appointments, setAppointments] = useState([]);
   const [filteredAppointments, setFilteredAppointments] = useState([]);
   const [searchTerm, setSearchTerm] = useState('');
   const [editing, setEditing] = useState(null);
   const [open, setOpen] = useState(false);
-  const [confirmationDialog, setConfirmationDialog] = useState({ open: false, message: '', success: false });
   const [sortOrder, setSortOrder] = useState('asc');
+  const [sortMode, setSortMode] = useState('dateSigned'); // 'dateSigned' = current default (Date Signed, newest first) | 'uploaded' = record upload order
+  const [loading, setLoading] = useState(true);
   const baseURL = import.meta.env.VITE_API_URL;
 const searchInputRef = useRef(null);
   const fileInputRef = useRef(null);
-  
+
   const fetchAppointments = async () => {
     try {
       const res = await axios.get(`${baseURL}/api/appointments`);
@@ -52,6 +55,8 @@ const searchInputRef = useRef(null);
         title: 'Error',
         text: `Failed to fetch appointments: ${error.message}`,
       });
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -114,7 +119,7 @@ const searchInputRef = useRef(null);
     }
 
     try {
-      const response = await axios.put(`${baseURL}/api/appointment/${editing.id}`, formData, {
+      await axios.put(`${baseURL}/api/appointment/${editing.id}`, formData, {
         headers: { 'Content-Type': 'multipart/form-data' },
       });
 
@@ -125,7 +130,7 @@ const searchInputRef = useRef(null);
       });
       setOpen(false);
       fetchAppointments();
-    } catch (err) {
+    } catch {
       showSwal({
         icon: 'error',
         title: 'Error',
@@ -139,7 +144,7 @@ const searchInputRef = useRef(null);
     setSearchTerm(term);
     setFilteredAppointments(
       appointments.filter((appointment) =>
-        appointment.Name.toLowerCase().includes(term)
+        appointment.Name?.toLowerCase().includes(term)
       )
     );
   };
@@ -167,10 +172,6 @@ const searchInputRef = useRef(null);
   const handleChange = (e) => {
     const { name, value } = e.target;
     setEditing((prev) => ({ ...prev, [name]: value }));
-  };
-
-  const handleConfirmationClose = () => {
-    setConfirmationDialog({ open: false, message: '', success: false });
   };
 
  const [sortColumn, setSortColumn] = useState(''); // Track the current sorting column
@@ -225,72 +226,91 @@ const handleSort = (column) => {
   }, [open]);
 
   return (
-    <Box sx={{ width: '100%', height: '100vh', display: 'flex', flexDirection: 'column', alignContent: 'center' }}>
-      <Header title="Admin Appointments" navLinks={navLinks} showLogout />
-
       <Box sx={{ maxWidth: 'auto', display: 'flex', flexDirection: 'column', justifyContent: 'center', alignItems: 'center', padding: 2 }}>
-        <Typography variant="h5" gutterBottom>
-          Appointment Management
-        </Typography>
+        <Box
+          sx={{
+            display: 'flex',
+            flexDirection: { xs: 'column', sm: 'row' },
+            alignItems: { xs: 'stretch', sm: 'center' },
+            gap: 2,
+            width: '70%',
+            maxWidth: 1200,
+            mt: 1,
+            mb: 2,
+          }}
+        >
+          <TextField
+            fullWidth
+            label="Search by Name"
+            value={searchTerm}
+            onChange={handleSearch}
+            inputRef={searchInputRef}
+            InputProps={{
+              startAdornment: (
+                <InputAdornment position="start">
+                  <SearchIcon fontSize="small" />
+                </InputAdornment>
+              ),
+            }}
+          />
 
-        <TextField
-          fullWidth
-          margin="normal"
-          label="Search by Name"
-          value={searchTerm}
-          onChange={handleSearch}
-          sx={{ width: '70%', maxWidth: 1200 }}
-           inputRef={searchInputRef} 
-        />
+          <FormControl size="small" sx={{ minWidth: 200, flexShrink: 0 }}>
+            <InputLabel>Sort by</InputLabel>
+            <Select value={sortMode} label="Sort by" onChange={(e) => setSortMode(e.target.value)}>
+              <MenuItem value="uploaded">Date Uploaded</MenuItem>
+              <MenuItem value="dateSigned">Date Signed</MenuItem>
+            </Select>
+          </FormControl>
+        </Box>
 
         <Box sx={{ width: '100%', display: 'flex', justifyContent: 'center', alignItems: 'center' }}>
           <TableContainer component={Paper} sx={{ maxHeight: 650, width: '100%', maxWidth: 1800 }}>
-            <Table>
-              <TableHead sx={{ backgroundColor: '#f5f5f5', fontWeight: 'bold' }}>
+            <Table stickyHeader>
+              <TableHead>
                 <TableRow>
-                  <TableCell sx={{fontWeight: 'bold'}}><TableSortLabel
+                  <TableCell sx={{ position: 'sticky', left: 0, zIndex: 3 }}><TableSortLabel
         active={sortColumn === 'Name'}
         direction={sortColumn === 'Name' ? sortOrder : 'asc'}
         onClick={() => handleSort('Name')}
       >
         Name
       </TableSortLabel></TableCell>
-                  <TableCell sx={{fontWeight: 'bold'}}><TableSortLabel
+                  <TableCell><TableSortLabel
         active={sortColumn === 'PositionTitle'}
         direction={sortColumn === 'PositionTitle' ? sortOrder : 'asc'}
         onClick={() => handleSort('PositionTitle')}
       >
         Position
       </TableSortLabel></TableCell>
-                  <TableCell sx={{fontWeight: 'bold'}}><TableSortLabel
+                  <TableCell><TableSortLabel
         active={sortColumn === 'SchoolOffice'}
         direction={sortColumn === 'SchoolOffice' ? sortOrder : 'asc'}
         onClick={() => handleSort('SchoolOffice')}
       >
         Office
       </TableSortLabel></TableCell>
-                  <TableCell sx={{fontWeight: 'bold'}}><TableSortLabel
+                  <TableCell><TableSortLabel
         active={sortColumn === 'District'}
         direction={sortColumn === 'District' ? sortOrder : 'asc'}
         onClick={() => handleSort('District')}
       >
         District
       </TableSortLabel></TableCell>
-                  <TableCell sx={{fontWeight: 'bold'}}><TableSortLabel
+                  <TableCell><TableSortLabel
         active={sortColumn === 'StatusOfAppointment'}
         direction={sortColumn === 'StatusOfAppointment' ? sortOrder : 'asc'}
         onClick={() => handleSort('StatusOfAppointment')}
       >
         Status
       </TableSortLabel></TableCell>
-                  <TableCell sx={{fontWeight: 'bold'}}><TableSortLabel
+                  <TableCell><TableSortLabel
         active={sortColumn === 'NatureAppointment'}
         direction={sortColumn === 'NatureAppointment' ? sortOrder : 'asc'}
         onClick={() => handleSort('NatureAppointment')}
       >
         Nature
       </TableSortLabel></TableCell>
-                  <TableCell sx={{ fontWeight: 'bold' }}>
+                  <TableCell>
       <TableSortLabel
         active={sortColumn === 'ItemNo'}
         direction={sortColumn === 'ItemNo' ? sortOrder : 'asc'}
@@ -299,24 +319,35 @@ const handleSort = (column) => {
         Item No
       </TableSortLabel>
     </TableCell>
-                  <TableCell sx={{fontWeight: 'bold'}}>Date</TableCell>
-                  <TableCell sx={{fontWeight: 'bold'}}>PDF</TableCell>
-                  <TableCell sx={{fontWeight: 'bold'}}>Date Released</TableCell>
-                  <TableCell sx={{fontWeight: 'bold'}}>Actions</TableCell>
+                  <TableCell>Date</TableCell>
+                  <TableCell>PDF</TableCell>
+                  <TableCell>Date Released</TableCell>
+                  <TableCell>Actions</TableCell>
                 </TableRow>
               </TableHead>
 
               <TableBody>
-                {filteredAppointments
-                  .sort((a, b) => new Date(b.DateSigned) - new Date(a.DateSigned))
-                  .map((row) => (
+                {loading ? (
+                  <TableSkeleton columns={11} />
+                ) : (sortMode === 'uploaded'
+                  ? [...filteredAppointments].sort((a, b) => b.id - a.id)
+                  : [...filteredAppointments].sort((a, b) => new Date(b.DateSigned) - new Date(a.DateSigned))
+                ).map((row) => (
                     <TableRow key={row.id}>
-                      <TableCell>{row.Name}</TableCell>
+                      <TableCell sx={{ position: 'sticky', left: 0, zIndex: 1, backgroundColor: 'white' }}>{row.Name}</TableCell>
                       <TableCell>{row.PositionTitle}</TableCell>
                       <TableCell>{row.SchoolOffice}</TableCell>
                       <TableCell>{row.District}</TableCell>
-                      <TableCell>{row.StatusOfAppointment}</TableCell>
-                      <TableCell>{row.NatureAppointment}</TableCell>
+                      <TableCell>
+                        {row.StatusOfAppointment ? (
+                          <StatusChip label={row.StatusOfAppointment} />
+                        ) : ''}
+                      </TableCell>
+                      <TableCell>
+                        {row.NatureAppointment ? (
+                          <StatusChip label={row.NatureAppointment} />
+                        ) : ''}
+                      </TableCell>
                       <TableCell>{row.ItemNo}</TableCell>
                       <TableCell sx={{ whiteSpace: 'nowrap' }}>
                         {row.DateSigned && !isNaN(new Date(row.DateSigned))
@@ -331,13 +362,15 @@ const handleSort = (column) => {
                       </TableCell>
                       <TableCell>
                         {row.pdfPath ? (
-                          <a
+                          <Link
                             href={`${baseURL}/${row.pdfPath}`}
                             target="_blank"
                             rel="noreferrer"
+                            color="primary"
+                            underline="hover"
                           >
                             View
-                          </a>
+                          </Link>
                         ) : (
                           'No PDF Available'
                         )}
@@ -353,19 +386,32 @@ const handleSort = (column) => {
                             })()
                           : ''}
                       </TableCell>
-                      <TableCell sx={{ display: 'flex', alignContent: 'start' }}>
-                        <IconButton onClick={() => handleEditClick(row)}>
-                          <Edit />
-                        </IconButton>
-                        <IconButton
-                          onClick={() => handleDelete(row.id)}
-                          color="error"
-                        >
-                          <Delete />
-                        </IconButton>
+                      <TableCell>
+                        <Box sx={{ display: 'flex' }}>
+                          <Tooltip title="Edit">
+                            <IconButton color="primary" onClick={() => handleEditClick(row)}>
+                              <Edit />
+                            </IconButton>
+                          </Tooltip>
+                          <Tooltip title="Delete">
+                            <IconButton
+                              onClick={() => handleDelete(row.id)}
+                              color="error"
+                            >
+                              <Delete />
+                            </IconButton>
+                          </Tooltip>
+                        </Box>
                       </TableCell>
                     </TableRow>
                   ))}
+                {!loading && filteredAppointments.length === 0 && (
+                  <TableRow>
+                    <TableCell colSpan={11} align="center">
+                      <EmptyState message="No appointments found" hint="Try a different search term." />
+                    </TableCell>
+                  </TableRow>
+                )}
               </TableBody>
             </Table>
           </TableContainer>
@@ -462,16 +508,17 @@ const handleSort = (column) => {
               onChange={handleChange}
             />
 
-            <Button variant="outlined" component="label" sx={{ mt: 2 }}>
+            <Button variant="outlined" component="label" startIcon={<UploadFileIcon />} sx={{ mt: 2 }}>
               Upload PDF
               <input
                 type="file"
                 accept="application/pdf"
                 hidden
                  ref={fileInputRef}
-                onChange={(e) =>
-                  setEditing((prev) => ({ ...prev, pdf: e.target.files[0] }))
-                }
+                onChange={(e) => {
+                  setEditing((prev) => ({ ...prev, pdf: e.target.files[0] }));
+                  e.target.value = '';
+                }}
               />
             </Button>
             {editing?.pdf && (
@@ -482,29 +529,19 @@ const handleSort = (column) => {
           </DialogContent>
           <DialogActions>
             <Button onClick={() => setOpen(false)}>Cancel</Button>
-            <Button variant="contained" onClick={handleUpdate} ref={saveButtonRef}>
+            <Button variant="contained" startIcon={<SaveIcon />} onClick={handleUpdate} ref={saveButtonRef}>
               Save
             </Button>
           </DialogActions>
         </Dialog>
-
-        <Dialog
-          open={confirmationDialog.open}
-          onClose={handleConfirmationClose}
-        >
-          <DialogTitle>
-            {confirmationDialog.success ? 'Success' : 'Error'}
-          </DialogTitle>
-          <DialogContent>
-            <Typography>{confirmationDialog.message}</Typography>
-          </DialogContent>
-          <DialogActions>
-            <Button onClick={handleConfirmationClose}>Close</Button>
-          </DialogActions>
-        </Dialog>
       </Box>
-    </Box>
   );
 };
+
+const EditAppointment = () => (
+  <AppShell title="Manage Appointments" navLinks={ADMIN_APPOINTMENT_NAV_LINKS} showLogout>
+    <EditAppointmentContent />
+  </AppShell>
+);
 
 export default EditAppointment;

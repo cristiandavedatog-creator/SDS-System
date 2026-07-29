@@ -1,3 +1,10 @@
 node_modules/
 *.sql
 .claude/
+
+# Real data exports/dumps and runtime artifacts — never source, often contain
+# real employee/school/travel data pulled from a live database.
+db-backups/
+service-logs/
+appointment_export
+orphan-travels-report.html

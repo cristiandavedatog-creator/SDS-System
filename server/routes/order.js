@@ -48,8 +48,9 @@ router.get('/orders', (req, res) => {
     LEFT JOIN 
       schools ON orders_table.school = schools.school_id -- Join orders_table with schools
 
-     LEFT JOIN 
-      district ON schools.district_id = district.id 
+     LEFT JOIN
+      district ON schools.district_id = district.id
+    ORDER BY orders_table.idorder DESC
   `;
 
   db.query(sql, (err, results) => {
@@ -58,11 +59,106 @@ router.get('/orders', (req, res) => {
   });
 });
 
+// Same normalization used for PDF-extracted traveler names elsewhere in
+// this app (travel.js, appointment.js) — strips suffixes/punctuation and
+// folds a handful of OCR digit/letter confusions, so a name typed slightly
+// differently (extra middle initial, "Jr." suffix, stray period) still
+// matches the same employee record.
+function normalizeEmployeeName(name) {
+  if (!name) return '';
+  return name
+    .toUpperCase()
+    .replace(/,?\s*(JR|SR|II|III|IV|CESO\s*[IVX]+)\.?$/i, '')
+    .replace(/[.,]/g, '')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+function matchingKey(name) {
+  return normalizeEmployeeName(name)
+    .replace(/1/g, 'I')
+    .replace(/0/g, 'O')
+    .replace(/5/g, 'S')
+    .replace(/8/g, 'B');
+}
+
+// Look up a person by name so Create Notice can auto-fill Address/
+// Position/School/District instead of making the admin retype them for
+// someone who already has data on file. Checks two sources and merges
+// them (a previous Notice wins per-field when it has a value, since it's
+// the more specific context; the Employee directory fills in whatever
+// gaps are left — e.g. someone who's never had a notice before, or a
+// notice that didn't record a School). Only ever used to PRE-fill blank
+// fields client-side — never writes anything.
+router.get('/orders/lookup', requireAuth, (req, res) => {
+  const name = (req.query.name || '').trim();
+  if (!name) return res.status(200).json({ found: false });
+
+  const orderSql = `
+    SELECT
+      orders_table.address,
+      orders_table.position,
+      orders_table.school,
+      schools.name AS school_name,
+      schools.district_id,
+      district.name AS district_name
+    FROM orders_table
+    LEFT JOIN schools ON orders_table.school = schools.school_id
+    LEFT JOIN district ON schools.district_id = district.id
+    WHERE LOWER(TRIM(orders_table.name)) = LOWER(TRIM(?))
+    ORDER BY orders_table.idorder DESC
+    LIMIT 1
+  `;
+  db.query(orderSql, [name], (err, orderRows) => {
+    if (err) return res.status(500).json({ error: 'Database error.' });
+    const orderMatch = orderRows[0] || null;
+
+    db.query('SELECT fullname, office, positionTitle FROM employee', (empErr, employees) => {
+      if (empErr) return res.status(500).json({ error: 'Database error.' });
+
+      const target = matchingKey(name);
+      const employeeMatch = employees.find((e) => matchingKey(e.fullname) === target) || null;
+
+      if (!orderMatch && !employeeMatch) return res.status(200).json({ found: false });
+
+      const finish = (schoolFromOffice) => {
+        const school = orderMatch?.school
+          ? { id: orderMatch.school, name: orderMatch.school_name, district_id: orderMatch.district_id, district_name: orderMatch.district_name }
+          : schoolFromOffice;
+
+        res.status(200).json({
+          found: true,
+          address: orderMatch?.address || '', // employees have no address on file
+          position: orderMatch?.position || employeeMatch?.positionTitle || '',
+          school: school || null,
+        });
+      };
+
+      // The employee directory only has an "office" name (e.g. "Basud
+      // National High School", or a central-office unit like "SGOD
+      // Proper" that isn't a school at all) — resolve it against the
+      // schools table to recover a district. Skipped entirely if a
+      // Notice already supplied a school, or there's no employee match.
+      if (!orderMatch?.school && employeeMatch?.office) {
+        const schoolSql = `
+          SELECT schools.school_id, schools.name, schools.district_id, district.name AS district_name
+          FROM schools LEFT JOIN district ON schools.district_id = district.id
+          WHERE LOWER(TRIM(schools.name)) = LOWER(TRIM(?))
+          LIMIT 1
+        `;
+        db.query(schoolSql, [employeeMatch.office], (schoolErr, schoolRows) => {
+          if (schoolErr || !schoolRows.length) return finish(null);
+          const s = schoolRows[0];
+          finish({ id: s.school_id, name: s.name, district_id: s.district_id, district_name: s.district_name });
+        });
+      } else {
+        finish(null);
+      }
+    });
+  });
+});
+
 // Create order (with optional PDF)
 router.post('/orders', requireAuth, upload.single('pdf'), (req, res) => {
-  console.log('Request Body:', req.body);
-  console.log('Uploaded File:', req.file);
-
   const {
     name,
     address,
@@ -130,28 +226,18 @@ router.put('/orders/:idorder', requireAuth, upload.single('pdf'), (req, res) => 
   // Handle PDF upload path
   const pdfPath = req.file ? `uploads/order/${req.file.filename}` : null;
 
-  // Log incoming data for debugging
-  console.log('Incoming data:', {
-    idorder,
-    name,
-    address,
-    position,
-    school,
-
-    date_signed: formattedDateSigned, // Log formatted date
-    file: req.file ? req.file.filename : null,
-  });
-
-  // SQL query to update order details
+  // SQL query to update order details. Text fields are assigned directly
+  // (not COALESCEd) so clearing a field in the edit form actually clears it
+  // — only pdf_path falls back to the existing value, since a new file
+  // isn't always attached on every edit.
   const sql = `
     UPDATE \`orders_table\`
-    SET 
-      name = COALESCE(?, name),
-      address = COALESCE(?, address),
-      position = COALESCE(?, position),
-      school = COALESCE(?, school),
-  
-      date_signed = COALESCE(?, date_signed),
+    SET
+      name = ?,
+      address = ?,
+      position = ?,
+      school = ?,
+      date_signed = ?,
       pdf_path = COALESCE(?, pdf_path)
     WHERE idorder = ?
   `;
@@ -164,8 +250,7 @@ router.put('/orders/:idorder', requireAuth, upload.single('pdf'), (req, res) => 
       address || null,
       position || null,
       school || null,
-
-      formattedDateSigned || null, // Use the formatted date
+      formattedDateSigned,
       pdfPath || null,
       idorder,
     ],
@@ -188,16 +273,12 @@ router.put('/orders/:idorder', requireAuth, upload.single('pdf'), (req, res) => 
 router.delete('/orders/:idorder', requireAuth, (req, res) => {
   const idorder = req.params.idorder;
 
-  console.log('Delete request received for idorder:', idorder); // Log incoming ID
-
   const getSql = 'SELECT pdf_path FROM `orders_table` WHERE idorder = ?';
   db.query(getSql, [idorder], (err, results) => {
     if (err) {
       console.error('Error fetching order:', err); // Log database error
       return res.status(500).json({ error: 'Error fetching order.' });
     }
-
-    console.log('Fetch results:', results); // Log query results
 
     if (results.length === 0) {
       console.warn('Order not found for idorder:', idorder); // Log missing order
@@ -213,16 +294,11 @@ router.delete('/orders/:idorder', requireAuth, (req, res) => {
         return res.status(500).json({ error: 'Database error during delete.' });
       }
 
-      console.log('Order deleted successfully'); // Log successful deletion
-
       if (pdfPath) {
         const fullPath = path.join(__dirname, '..', pdfPath);
-        console.log('Attempting to delete file at path:', fullPath); // Log file path
         fs.unlink(fullPath, (fsErr) => {
           if (fsErr && fsErr.code !== 'ENOENT') {
             console.warn('PDF deletion error:', fsErr); // Log file deletion error
-          } else {
-            console.log('PDF deleted successfully or file not found.'); // Log successful file deletion
           }
         });
       }

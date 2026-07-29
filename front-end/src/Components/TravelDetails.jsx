@@ -10,21 +10,27 @@ import {
   Typography,
   Box,
   Alert,
-  CircularProgress,
   TextField,
   MenuItem,
   Select,
   FormControl,
   InputLabel,
   useMediaQuery,
-  Accordion,
-  AccordionSummary,
-  AccordionDetails,
   Stack,
+  Dialog,
+  DialogTitle,
+  DialogContent,
+  DialogActions,
+  IconButton,
+  Button,
+  Divider,
 } from '@mui/material';
-import ExpandMoreIcon from '@mui/icons-material/ExpandMore';
+import CloseIcon from '@mui/icons-material/Close';
 import dayjs from 'dayjs';
 import { useTheme } from '@mui/material/styles';
+import DetailRow from './reusable_components/DetailRow';
+import EmptyState from './reusable_components/EmptyState';
+import TableSkeleton from './reusable_components/TableSkeleton';
 
 const TravelDetails = ({ searchQuery: initialSearchQuery }) => {
   const [data, setData] = useState([]);
@@ -37,6 +43,8 @@ const TravelDetails = ({ searchQuery: initialSearchQuery }) => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [searchQuery, setSearchQuery] = useState(initialSearchQuery || '');
+  const [selectedTravel, setSelectedTravel] = useState(null);
+  const [sortMode, setSortMode] = useState('uploaded'); // 'uploaded' = API order (newest uploaded first) | 'fileDate' = Travel Period date
   const baseURL = import.meta.env.VITE_API_URL;
 
   const theme = useTheme();
@@ -90,13 +98,10 @@ const TravelDetails = ({ searchQuery: initialSearchQuery }) => {
     return matchesStation && matchesArea && matchesPosition && matchesSearch;
   });
 
-  if (loading) {
-    return (
-      <Box display="flex" justifyContent="center" alignItems="center" minHeight="200px">
-        <CircularProgress />
-      </Box>
-    );
-  }
+  // 'uploaded' keeps the API's own order (newest record first); 'fileDate' resorts by the travel's own date.
+  const sortedData = sortMode === 'fileDate'
+    ? [...filteredData].sort((a, b) => new Date(b.DatesFrom) - new Date(a.DatesFrom))
+    : filteredData;
 
   if (error) {
     return (
@@ -108,10 +113,6 @@ const TravelDetails = ({ searchQuery: initialSearchQuery }) => {
 
   return (
   <Paper sx={{ p: { xs: 1, sm: 2 }, mt: 2 }}>
-    <Typography variant="h6" mb={2}>
-      Travel Details
-    </Typography>
-
     {/* Filters */}
     <Stack direction={{ xs: 'column', md: 'row' }} spacing={2} mb={2}>
       {/* Search */}
@@ -184,6 +185,21 @@ const TravelDetails = ({ searchQuery: initialSearchQuery }) => {
           </Select>
         </FormControl>
       </Box>
+
+      <Box flex={1}>
+        <FormControl fullWidth variant="outlined" size="small">
+          <InputLabel id="sort-by-label">Sort by</InputLabel>
+          <Select
+            labelId="sort-by-label"
+            value={sortMode}
+            onChange={(e) => setSortMode(e.target.value)}
+            label="Sort by"
+          >
+            <MenuItem value="uploaded">Date Uploaded</MenuItem>
+            <MenuItem value="fileDate">Travel Date</MenuItem>
+          </Select>
+        </FormControl>
+      </Box>
     </Stack>
 
     {/* Responsive Table or Accordion */}
@@ -191,22 +207,29 @@ const TravelDetails = ({ searchQuery: initialSearchQuery }) => {
       <>
         <TableContainer component={Paper} sx={{ maxHeight: 650, overflowY: 'auto' }}>
           <Table stickyHeader>
-            <TableHead sx={{ backgroundColor: '#f5f5f5' }}>
+            <TableHead>
               <TableRow>
-                <TableCell sx={{fontWeight: 'bold', minWidth: 125, whiteSpace: 'nowrap'}}>Name</TableCell>
-                <TableCell sx={{fontWeight: 'bold', minWidth: 200}}>Position</TableCell>
-                <TableCell sx={{fontWeight: 'bold', minWidth: 200}}>Station</TableCell>
-                <TableCell sx={{fontWeight: 'bold', minWidth: 250}}>Purpose</TableCell>
-                <TableCell sx={{fontWeight: 'bold', minWidth: 200}}>Host</TableCell>
-                <TableCell sx={{fontWeight: 'bold', minWidth: 180}}>Travel Period</TableCell>
-                <TableCell sx={{fontWeight: 'bold', minWidth: 200}}>Destination</TableCell>
-                <TableCell sx={{fontWeight: 'bold', minWidth: 140}}>Source of Fund</TableCell>
-                <TableCell sx={{fontWeight: 'bold'}}>Area</TableCell>
+                <TableCell sx={{ minWidth: 125, whiteSpace: 'nowrap', position: 'sticky', left: 0, zIndex: 3 }}>Name</TableCell>
+                <TableCell sx={{ minWidth: 200 }}>Position</TableCell>
+                <TableCell sx={{ minWidth: 200 }}>Station</TableCell>
+                <TableCell sx={{ minWidth: 250 }}>Purpose</TableCell>
+                <TableCell sx={{ minWidth: 200 }}>Host</TableCell>
+                <TableCell sx={{ minWidth: 180 }}>Travel Period</TableCell>
+                <TableCell sx={{ minWidth: 200 }}>Destination</TableCell>
+                <TableCell sx={{ minWidth: 140 }}>Source of Fund</TableCell>
+                <TableCell>Area</TableCell>
               </TableRow>
             </TableHead>
             <TableBody>
-              {filteredData.map((row, index) => (
-                <TableRow key={index}>
+              {loading ? (
+                <TableSkeleton columns={9} />
+              ) : sortedData.map((row, index) => (
+                <TableRow
+                  key={index}
+                  hover
+                  onClick={() => setSelectedTravel(row)}
+                  sx={{ cursor: 'pointer' }}
+                >
                   <TableCell
                     sx={{
                       whiteSpace: 'nowrap',
@@ -221,7 +244,8 @@ const TravelDetails = ({ searchQuery: initialSearchQuery }) => {
                         href={`${baseURL}${row.Attachment}`}
                         target="_blank"
                         rel="noopener noreferrer"
-                        style={{ textDecoration: 'none', color: '#1976d2', fontWeight: 500 }}
+                        onClick={(e) => e.stopPropagation()}
+                        className="no-underline font-medium text-brand-navy hover:text-brand-accent transition-colors"
                       >
                         {row.Fullname}
                       </a>
@@ -241,10 +265,10 @@ const TravelDetails = ({ searchQuery: initialSearchQuery }) => {
                   <TableCell>{row.Area}</TableCell>
                 </TableRow>
               ))}
-              {filteredData.length === 0 && (
+              {!loading && sortedData.length === 0 && (
                 <TableRow>
-                  <TableCell colSpan={9} align="center" sx={{ py: 4 }}>
-                    No records found.
+                  <TableCell colSpan={9} align="center">
+                    <EmptyState message="No records found" hint="Try adjusting your filters or search." />
                   </TableCell>
                 </TableRow>
               )}
@@ -255,13 +279,68 @@ const TravelDetails = ({ searchQuery: initialSearchQuery }) => {
         {/* Total Data Count */}
         <Box sx={{ mt: 2, textAlign: { xs: 'center', md: 'end' } }}>
           <Typography variant="body1" sx={{ fontWeight: 'bold' }}>
-            Total Entries: {filteredData.length}
+            Total Entries: {sortedData.length}
           </Typography>
         </Box>
       </>
     ) : (
       <Alert severity="info">Use a larger screen to view full travel details.</Alert>
     )}
+
+    <Dialog
+      open={Boolean(selectedTravel)}
+      onClose={() => setSelectedTravel(null)}
+      maxWidth="sm"
+      fullWidth
+    >
+      {selectedTravel && (
+        <>
+          <DialogTitle sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+            {selectedTravel.Fullname || 'Travel Details'}
+            <IconButton onClick={() => setSelectedTravel(null)} size="small">
+              <CloseIcon />
+            </IconButton>
+          </DialogTitle>
+          <Divider />
+          <DialogContent>
+            <Stack spacing={1.5} sx={{ mt: 1 }}>
+              <DetailRow label="Position" value={selectedTravel.PositionDesignation} />
+              <DetailRow label="Station" value={selectedTravel.Station} />
+              <DetailRow label="Purpose" value={selectedTravel.Purpose} />
+              <DetailRow label="Host" value={selectedTravel.Host} />
+              <DetailRow label="Destination" value={selectedTravel.Destination} />
+              <DetailRow
+                label="Travel Period"
+                value={
+                  selectedTravel.DatesFrom && selectedTravel.DatesTo
+                    ? `${dayjs(selectedTravel.DatesFrom).format('MMM DD, YYYY')} - ${dayjs(selectedTravel.DatesTo).format('MMM DD, YYYY')}`
+                    : 'N/A'
+                }
+              />
+              <DetailRow label="Source of Fund" value={selectedTravel.sof} />
+              <DetailRow label="Area" value={selectedTravel.Area} />
+              <DetailRow label="Attachment">
+                {selectedTravel.Attachment ? (
+                  <a
+                    href={`${baseURL}${selectedTravel.Attachment}`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-brand-navy underline font-medium hover:text-brand-accent transition-colors"
+                  >
+                    View PDF
+                  </a>
+                ) : (
+                  <Typography variant="body2" color="text.secondary">None</Typography>
+                )}
+              </DetailRow>
+            </Stack>
+          </DialogContent>
+          <DialogActions sx={{ p: 2 }}>
+            <Button onClick={() => setSelectedTravel(null)}>Close</Button>
+          </DialogActions>
+        </>
+      )}
+    </Dialog>
   </Paper>
 );
 };

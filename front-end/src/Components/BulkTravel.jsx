@@ -6,12 +6,12 @@ import {
 } from '@mui/material';
 import * as XLSX from 'xlsx';
 import axios from 'axios';
+import { BRAND } from '../theme/theme';
 
 export default function BulkTravel() {
   const [file, setFile] = useState(null);
   const [data, setData] = useState([]);
   const [preview, setPreview] = useState([]);
-  const [mode, setMode] = useState(null);
   const [open, setOpen] = useState(false);
   const [loading, setLoading] = useState(false);
   const [msg, setMsg] = useState(null);
@@ -52,9 +52,8 @@ export default function BulkTravel() {
     setPreview(fData.slice(0, 5));
   };
 
-  const openDialog = m => {
+  const openDialog = () => {
     if (!file) return;
-    setMode(m);
     setOpen(true);
   };
 
@@ -85,11 +84,11 @@ export default function BulkTravel() {
         </Button>
         {file && <Typography>{file.name}</Typography>}
         <Stack direction="row" spacing={2}>
-          <Button variant="contained" onClick={() => openDialog('upsert')} disabled={!file}>
+          <Button variant="contained" onClick={openDialog} disabled={!file}>
             Bulk Upsert
           </Button>
         </Stack>
-        {msg && <Alert>{msg}</Alert>}
+        {msg && <Alert severity={msg.startsWith('Error') ? 'error' : 'success'}>{msg}</Alert>}
       </Stack>
 
       <Dialog open={open} onClose={() => !loading && setOpen(false)} maxWidth="lg" fullWidth>
@@ -98,17 +97,27 @@ export default function BulkTravel() {
           <DialogContentText>
             You're about to upsert {data.length} rows. Preview (first {preview.length}):
           </DialogContentText>
-          <Box mt={2} maxHeight={300} overflow="auto" component="div">
-            <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+          <Box mt={2} maxHeight={300} overflow="auto" component="div" sx={{ border: '1px solid', borderColor: 'divider', borderRadius: 1 }}>
+            <table className="min-w-full border-collapse">
               <thead>
                 <tr>
-                  {Object.keys(preview[0] || {}).map(h => <th key={h}>{h}</th>)}
+                  {Object.keys(preview[0] || {}).map(h => (
+                    <th
+                      key={h}
+                      className="px-4 py-2 text-left text-xs font-bold text-slate-700 border-b border-slate-200"
+                      style={{ backgroundColor: BRAND.tableHead }}
+                    >
+                      {h}
+                    </th>
+                  ))}
                 </tr>
               </thead>
               <tbody>
                 {preview.map((r,i) => (
-                  <tr key={i}>
-                    {Object.values(r).map((v,j)=><td key={j}>{v}</td>)}
+                  <tr key={i} className="border-b border-slate-200 even:bg-slate-50 hover:bg-sky-50/60 transition-colors">
+                    {Object.values(r).map((v,j)=>(
+                      <td key={j} className="px-4 py-2 text-sm">{v}</td>
+                    ))}
                   </tr>
                 ))}
               </tbody>

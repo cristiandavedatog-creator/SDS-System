@@ -9,7 +9,6 @@ import {
   TableSortLabel,
   Paper,
   Typography,
-  CircularProgress,
   Box,
   TextField,
   FormControl,
@@ -18,6 +17,8 @@ import {
   MenuItem,
 } from '@mui/material';
 import axios from 'axios';
+import EmptyState from '../reusable_components/EmptyState';
+import TableSkeleton from '../reusable_components/TableSkeleton';
 
 const OrderTable = () => {
   const [orders, setOrders] = useState([]);
@@ -25,9 +26,10 @@ const OrderTable = () => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [order, setOrder] = useState('asc');
-  const [orderBy, setOrderBy] = useState('surname');
+  const [orderBy, setOrderBy] = useState(''); // empty = keep newest-first API order until the user picks a column
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedDistrict, setSelectedDistrict] = useState('');
+  const [sortMode, setSortMode] = useState('uploaded'); // 'uploaded' = API order (newest uploaded first) | 'dateSigned' = Date Signed; only applies when no column header sort is active
   const baseURL = import.meta.env.VITE_API_URL;
 
   useEffect(() => {
@@ -38,7 +40,7 @@ const OrderTable = () => {
         setFilteredOrders(response.data);
         setLoading(false);
       })
-      .catch((err) => {
+      .catch(() => {
         setError('Failed to load orders. Please try again later.');
         setLoading(false);
       });
@@ -65,11 +67,11 @@ const OrderTable = () => {
   const filterOrders = (query, district) => {
     const filtered = orders.filter((order) => {
       const matchesSearch =
-        order.name.toLowerCase().includes(query) ||
-        order.address.toLowerCase().includes(query) ||
-        order.position.toLowerCase().includes(query) ||
-        order.school_name.toLowerCase().includes(query) ||
-        order.district_name.toLowerCase().includes(query);
+        order.name?.toLowerCase().includes(query) ||
+        order.address?.toLowerCase().includes(query) ||
+        order.position?.toLowerCase().includes(query) ||
+        order.school_name?.toLowerCase().includes(query) ||
+        order.district_name?.toLowerCase().includes(query);
 
       const matchesDistrict = district ? order.district_name === district : true;
 
@@ -84,23 +86,19 @@ const OrderTable = () => {
     return parts[parts.length - 1]; // Assume the surname is the last word
   };
 
-  const sortedOrders = filteredOrders.slice().sort((a, b) => {
-    const compareA = extractSurname(a.name).toLowerCase();
-    const compareB = extractSurname(b.name).toLowerCase();
+  const sortedOrders = orderBy
+    ? filteredOrders.slice().sort((a, b) => {
+        const compareA = (orderBy === 'surname' ? extractSurname(a.name) : a[orderBy] || '').toString().toLowerCase();
+        const compareB = (orderBy === 'surname' ? extractSurname(b.name) : b[orderBy] || '').toString().toLowerCase();
 
-    if (order === 'asc') {
-      return compareA < compareB ? -1 : 1;
-    }
-    return compareA > compareB ? -1 : 1;
-  });
-
-  if (loading) {
-    return (
-      <Box display="flex" justifyContent="center" alignItems="center" height="100vh">
-        <CircularProgress />
-      </Box>
-    );
-  }
+        if (order === 'asc') {
+          return compareA < compareB ? -1 : 1;
+        }
+        return compareA > compareB ? -1 : 1;
+      })
+    : sortMode === 'dateSigned'
+    ? filteredOrders.slice().sort((a, b) => new Date(b.date_signed) - new Date(a.date_signed))
+    : filteredOrders;
 
   if (error) {
     return (
@@ -139,12 +137,19 @@ const OrderTable = () => {
             )}
           </Select>
         </FormControl>
+        <FormControl sx={{ minWidth: 220 }} size="small">
+          <InputLabel>Sort by</InputLabel>
+          <Select value={sortMode} onChange={(e) => setSortMode(e.target.value)} label="Sort by">
+            <MenuItem value="uploaded">Date Uploaded</MenuItem>
+            <MenuItem value="dateSigned">Date Signed</MenuItem>
+          </Select>
+        </FormControl>
       </Box>
       <TableContainer sx={{ maxHeight: 550, overflowY: 'auto' }}>
         <Table stickyHeader>
           <TableHead>
             <TableRow>
-              <TableCell>
+              <TableCell sx={{ position: 'sticky', left: 0, zIndex: 3 }}>
                 <TableSortLabel
                   sx={{ fontWeight: 'bold' }}
                   active={orderBy === 'surname'}
@@ -198,20 +203,22 @@ const OrderTable = () => {
             </TableRow>
           </TableHead>
           <TableBody>
-            {sortedOrders.map((order) => (
+            {loading ? (
+              <TableSkeleton columns={6} />
+            ) : sortedOrders.map((order) => (
               <TableRow key={order.id}>
-                <TableCell>
+                <TableCell sx={{ position: 'sticky', left: 0, zIndex: 1, backgroundColor: 'white' }}>
                   {order.pdf_path ? (
                     <a
                       href={`${baseURL}/${order.pdf_path}`}
                       target="_blank"
                       rel="noopener noreferrer"
-                      style={{ color: 'blue', textDecoration: 'none' }}
+                      className="text-brand-navy font-medium no-underline hover:underline"
                     >
                       {order.name}
                     </a>
                   ) : (
-                    <span style={{ color: 'black' }}>{order.name}</span>
+                    <span>{order.name}</span>
                   )}
                 </TableCell>
                 <TableCell>{order.address}</TableCell>
@@ -229,6 +236,13 @@ const OrderTable = () => {
                 </TableCell>
               </TableRow>
             ))}
+            {!loading && sortedOrders.length === 0 && (
+              <TableRow>
+                <TableCell colSpan={6} align="center">
+                  <EmptyState message="No notices found" hint="Try adjusting your filters or search." />
+                </TableCell>
+              </TableRow>
+            )}
           </TableBody>
         </Table>
       </TableContainer>

@@ -21,6 +21,7 @@ import {
   CircularProgress,
   Alert
 } from '@mui/material';
+import { BRAND } from '../theme/theme';
 
 ChartJS.register(
   CategoryScale,
@@ -53,11 +54,11 @@ const generateWeeklyLabels = (year, month) => {
 };
 
 const LineGraph = () => {
-  const [timeRange, setTimeRange] = useState('Weekly');
+  const [timeRange, setTimeRange] = useState('Monthly');
   const [selectedYear, setSelectedYear] = useState('2025');
   const [selectedMonth, setSelectedMonth] = useState(0); // Number: 0 = Jan
-  const [selectedPosition, setSelectedPosition] = useState('All');
-  const [selectedStation, setSelectedStation] = useState('All');
+  const selectedPosition = 'All';
+  const selectedStation = 'All';
 
   const [graphData, setGraphData] = useState(null);
   const [loading, setLoading] = useState(false);
@@ -113,8 +114,8 @@ const LineGraph = () => {
         {
           label: `Travels (${timeRange})`,
           data: [0],
-          borderColor: '#3b82f6',
-          backgroundColor: 'rgba(59, 130, 246, 0.2)',
+          borderColor: BRAND.accent,
+          backgroundColor: BRAND.chartFillMuted,
           tension: 0.3,
           fill: true,
         },
@@ -193,7 +194,7 @@ const LineGraph = () => {
   };
 
   return (
-    <Box className="w-[700px] mx-auto p-4 bg-white rounded shadow" sx={{ maxHeight: '425px' }}>
+    <Box className="w-full max-w-[700px] mx-auto p-4 bg-white rounded-xl shadow" sx={{ maxHeight: '425px' }}>
       <Box className="flex gap-4 mb-4 flex-wrap">
         <FormControl size="small">
           <InputLabel>Time Range</InputLabel>

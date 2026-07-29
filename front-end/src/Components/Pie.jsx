@@ -1,10 +1,14 @@
 import React, { useEffect, useState } from 'react';
 import { PieChart } from '@mui/x-charts/PieChart';
+import { useMediaQuery, useTheme } from '@mui/material';
 import axios from 'axios';
+import { BRAND } from '../theme/theme';
 
 const Pie = () => {
   const [chartData, setChartData] = useState([]);
   const baseURL = import.meta.env.VITE_API_URL;
+  const theme = useTheme();
+  const isSmall = useMediaQuery(theme.breakpoints.down('sm'));
   useEffect(() => {
     axios.get(`${baseURL}/api/travels`) // Adjust the URL to your API endpoint
       .then((response) => {
@@ -22,12 +26,13 @@ const Pie = () => {
           }
         });
 
-        // Set colors for each area
+        // Set colors for each area — anchored on the app's navy/accent brand
+        // colors, with two contrasting accents for the remaining categories.
         const colors = {
-          Division: '#2ECC71',
-          Region: '#2E469C',
-          National: '#FF0000',
-          Abroad: '#F39C12',
+          Division: BRAND.navy,
+          Region: BRAND.accent,
+          National: BRAND.amber,
+          Abroad: BRAND.violet,
         };
 
         // Convert grouped data into chart format
@@ -48,7 +53,7 @@ const Pie = () => {
   const valueFormatter = (item) => `${item.value} travels`;
 
   return (
-    <div className='bg-white rounded-lg shadow-md h-[400px] items-center flex flex-col justify-center pt-5'>
+    <div className='bg-white rounded-xl shadow-md w-full max-w-[420px] mx-auto min-h-[360px] items-center flex flex-col justify-center pt-5 px-2'>
       <h2 className='text-center text-2xl font-semibold mb-2'>Travel Distribution</h2>
 
       <PieChart
@@ -58,14 +63,14 @@ const Pie = () => {
             highlightScope: { fade: 'global', highlight: 'item' },
             faded: { innerRadius: 30, additionalRadius: -30, color: 'gray' },
             valueFormatter,
-            innerRadius: 40,
-            outerRadius: 140,
+            innerRadius: isSmall ? 30 : 40,
+            outerRadius: isSmall ? 100 : 140,
             paddingAngle: 2,
             cornerRadius: 4,
           },
         ]}
-        height={300}
-        width={400}
+        height={isSmall ? 260 : 300}
+        width={isSmall ? 300 : 400}
         margin={{ top: 10, bottom: 55, left: 10, right: 10 }}
         legend={{
           hidden: false,

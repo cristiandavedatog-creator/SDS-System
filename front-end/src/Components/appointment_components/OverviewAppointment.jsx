@@ -1,6 +1,8 @@
 import React, { useEffect, useState } from 'react';
-import { Box, Card, CardContent, Typography, Grid, CircularProgress } from '@mui/material';
+import { Box, Chip, CircularProgress } from '@mui/material';
+import { Groups } from '@mui/icons-material';
 import axios from 'axios';
+import { TRAVEL_STATUS_COLORS } from '../../theme/travelStatus';
 
 const OverviewAppointment = () => {
   const [appointments, setAppointments] = useState([]);
@@ -20,53 +22,26 @@ const OverviewAppointment = () => {
   }, []);
 
   const totalAppointments = appointments.length;
-
-
-  const thisMonth = new Date().getMonth();
-  const thisYear = new Date().getFullYear();
-
-  const appointmentsThisMonth = appointments.filter(app => {
-    if (!app.DateSigned) return false;
-    const date = new Date(app.DateSigned);
-    return date.getMonth() === thisMonth && date.getFullYear() === thisYear;
-  }).length;
-
-  const commonNature = () => {
-    const counts = {};
-    appointments.forEach(app => {
-      if (app.NatureAppointment) {
-        counts[app.NatureAppointment] = (counts[app.NatureAppointment] || 0) + 1;
-      }
-    });
-    const sorted = Object.entries(counts).sort((a, b) => b[1] - a[1]);
-    return sorted[0]?.[0] || 'N/A';
-  };
+  const colors = TRAVEL_STATUS_COLORS.total;
 
   if (loading) {
-    return <Box sx={{ display: 'flex', justifyContent: 'center', mt: 5 }}><CircularProgress /></Box>;
+    return <Box sx={{ display: 'flex', justifyContent: 'center', p: 2 }}><CircularProgress size={20} /></Box>;
   }
 
   return (
-    <Box sx={{ p: 4 , boxShadow: 2, bgcolor: 'white', borderRadius: 2, mb: 3}}>
-      <Typography variant="h5" mb={3}>Overview</Typography>
-      <Grid container spacing={3}>
-        <OverviewCard title="Total Appointments" value={totalAppointments} color="#1976d2" />
-      
-        
-      </Grid>
-    </Box>
+    <Chip
+      icon={<Groups fontSize="small" />}
+      label={`Total Appointments: ${totalAppointments}`}
+      variant="outlined"
+      sx={{
+        fontWeight: 600,
+        color: colors.text,
+        borderColor: colors.border,
+        backgroundColor: colors.bg,
+        '& .MuiChip-icon': { color: colors.text },
+      }}
+    />
   );
 };
-
-const OverviewCard = ({ title, value, color }) => (
-  <Grid item xs={12} sm={6} md={4}>
-    <Card sx={{ borderLeft: `6px solid ${color}`, boxShadow: 2 }}>
-      <CardContent>
-        <Typography variant="subtitle2" color="textSecondary" gutterBottom>{title}</Typography>
-        <Typography variant="h5" fontWeight="bold" color={color}>{value}</Typography>
-      </CardContent>
-    </Card>
-  </Grid>
-);
 
 export default OverviewAppointment;

@@ -3,26 +3,32 @@ import {
   Box, Typography, Table, TableBody, TableCell,
   TableContainer, TableHead, TableRow, Paper,
   IconButton, Dialog, DialogTitle, DialogContent,
-  DialogActions, TextField, Button, FormControl,
-  Select, MenuItem, InputLabel, Autocomplete, TableSortLabel
+  DialogActions, TextField, Button,
+  Autocomplete, TableSortLabel,
+  InputAdornment, Tooltip, Link,
+  FormControl, InputLabel, Select, MenuItem,
 } from '@mui/material';
-import { Edit, Delete } from '@mui/icons-material';
+import { Edit, Delete, Search as SearchIcon, Save as SaveIcon, UploadFile as UploadFileIcon } from '@mui/icons-material';
 import axios from 'axios';
-import Header from '../../Components/Header';
+import Swal from 'sweetalert2';
+import AppShell from '../../Components/AppShell';
+import StatusChip from '../../Components/reusable_components/StatusChip';
+import EmptyState from '../../Components/reusable_components/EmptyState';
+import TableSkeleton from '../../Components/reusable_components/TableSkeleton';
+import { ADMIN_NOTICE_NAV_LINKS } from '../../config/navLinks';
+import { startsWithFirstFilter } from '../../utils/autocompleteFilters';
 
-const navLinks = [
-  { label: 'Dashboard', path: '/admin' },
-  { label: 'Notices', path: '/editOrder' },
-  { label: 'Add Notice', path: '/createOrder' },
-];
-
-const EditOrder = () => {
+// Exported separately so the admin dashboard can render this content inline
+// (inside its container-transform overlay) without a nested AppShell. All
+// state/logic/data-fetching below is unchanged from the original component.
+export const EditOrderContent = () => {
   const [orders, setOrders] = useState([]);
   const [filteredOrders, setFilteredOrders] = useState([]);
   const [schools, setSchools] = useState([]);
   const [searchTerm, setSearchTerm] = useState('');
   const [editing, setEditing] = useState(null);
   const [open, setOpen] = useState(false);
+  const [loading, setLoading] = useState(true);
   const baseURL = import.meta.env.VITE_API_URL;
 
   const API = `${baseURL}/api`;
@@ -35,6 +41,8 @@ const EditOrder = () => {
       setFilteredOrders(res.data); // Initialize filtered orders
     } catch (err) {
       console.error('Error fetching orders:', err);
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -58,7 +66,7 @@ const EditOrder = () => {
     setSearchTerm(term);
     setFilteredOrders(
       orders.filter((order) =>
-        order.name.toLowerCase().includes(term)
+        order.name?.toLowerCase().includes(term)
       )
     );
   };
@@ -75,13 +83,27 @@ const EditOrder = () => {
 };
 
   const handleDelete = async (idorder) => {
-    if (window.confirm('Are you sure you want to delete this record?')) {
+    const result = await Swal.fire({
+      title: 'Are you sure?',
+      text: 'You won\'t be able to revert this!',
+      icon: 'warning',
+      showCancelButton: true,
+      confirmButtonColor: '#3085d6',
+      cancelButtonColor: '#d33',
+      confirmButtonText: 'Yes, delete it!',
+    });
+
+    if (result.isConfirmed) {
       try {
         await axios.delete(`${API}/orders/${idorder}`);
         fetchOrders();
       } catch (err) {
         console.error('Error deleting order:', err);
-        alert('Failed to delete the order. Please try again.');
+        Swal.fire({
+          icon: 'error',
+          title: 'Delete Failed',
+          text: 'Failed to delete the order. Please try again.',
+        });
       }
     }
   };
@@ -117,16 +139,19 @@ const EditOrder = () => {
 
     try {
       // Send update request to the backend
-      const response = await axios.put(`${API}/orders/${editing.idorder}`, formData, {
+      await axios.put(`${API}/orders/${editing.idorder}`, formData, {
         headers: { 'Content-Type': 'multipart/form-data' },
       });
 
-      console.log('Update successful:', response.data); // Log success response
       setOpen(false); // Close modal/dialog
       fetchOrders(); // Refresh orders list
     } catch (err) {
       console.error('Update failed:', err); // Log error
-      alert('Update failed. Please check the data and try again.'); // Show alert
+      Swal.fire({
+        icon: 'error',
+        title: 'Update Failed',
+        text: 'Please check the data and try again.',
+      });
     }
   };
 
@@ -137,6 +162,7 @@ const EditOrder = () => {
 
    const [sortColumn, setSortColumn] = useState('');
 const [sortOrder, setSortOrder] = useState('asc');
+  const [sortMode, setSortMode] = useState('uploaded'); // 'uploaded' = API order (newest uploaded first) | 'dateSigned' = Date Signed; only applies when no column header sort is active
 
 // Sorting logic
 const handleSort = (column) => {
@@ -163,33 +189,58 @@ const handleSort = (column) => {
   setFilteredOrders(sortedOrders);
 };
 
+  // Only kicks in when no column header sort is active, so clicking a column header still works as before.
+  const displayedOrders = sortColumn
+    ? filteredOrders
+    : sortMode === 'dateSigned'
+    ? [...filteredOrders].sort((a, b) => new Date(b.date_signed) - new Date(a.date_signed))
+    : filteredOrders;
+
   return (
-    <Box sx={{ width: '100%', height: '100vh', display: 'flex', flexDirection: 'column', alignContent: 'center' }}>
-      {/* Header with Navbar */}
-      <Header title="Admin Notice" navLinks={navLinks} showLogout />
-
       <Box sx={{ maxWidth: 'auto', display: 'flex', flexDirection: 'column', justifyContent: 'center', alignItems: 'center', padding: 2 }}>
-        <Typography variant="h5" gutterBottom>
-          Notice Management
-        </Typography>
+        {/* Search + Sort */}
+        <Box
+          sx={{
+            display: 'flex',
+            flexDirection: { xs: 'column', sm: 'row' },
+            alignItems: { xs: 'stretch', sm: 'center' },
+            gap: 2,
+            width: '70%',
+            maxWidth: 1200,
+            mt: 1,
+            mb: 2,
+          }}
+        >
+          <TextField
+            fullWidth
+            label="Search by Name"
+            value={searchTerm}
+            onChange={handleSearch}
+            InputProps={{
+              startAdornment: (
+                <InputAdornment position="start">
+                  <SearchIcon fontSize="small" />
+                </InputAdornment>
+              ),
+            }}
+          />
 
-        {/* Search Box */}
-        <TextField
-          fullWidth
-          margin="normal"
-          label="Search by Name"
-          value={searchTerm}
-          onChange={handleSearch}
-          sx={{ width: '70%', maxWidth: 1200 }}
-        />
+          <FormControl size="small" sx={{ minWidth: 200, flexShrink: 0 }}>
+            <InputLabel>Sort by</InputLabel>
+            <Select value={sortMode} label="Sort by" onChange={(e) => setSortMode(e.target.value)}>
+              <MenuItem value="uploaded">Date Uploaded</MenuItem>
+              <MenuItem value="dateSigned">Date Signed</MenuItem>
+            </Select>
+          </FormControl>
+        </Box>
 
         {/* Table Container centered */}
         <Box sx={{ width: '100%', display: 'flex', justifyContent: 'center', alignItems: 'center' }}>
           <TableContainer component={Paper} sx={{ maxHeight: 500, width: '100%', maxWidth: 1800 }}>
-            <Table>
-              <TableHead sx={{ backgroundColor: '#f5f5f5' }}>
+            <Table stickyHeader>
+              <TableHead>
                 <TableRow>
-                  <TableCell>
+                  <TableCell sx={{ position: 'sticky', left: 0, zIndex: 3 }}>
       <TableSortLabel
         active={sortColumn === 'name'}
         direction={sortColumn === 'name' ? sortOrder : 'asc'}
@@ -252,16 +303,18 @@ const handleSort = (column) => {
         PDF
       </TableSortLabel>
     </TableCell>
-    <TableCell sx={{ display: 'flex', alignContent: 'start' }}>
+    <TableCell>
       Actions
     </TableCell>
   </TableRow>
 </TableHead>
 
               <TableBody>
-                {filteredOrders.map((row) => (
+                {loading ? (
+                  <TableSkeleton columns={8} />
+                ) : displayedOrders.map((row) => (
                   <TableRow key={row.idorder}>
-                    <TableCell>{row.name}</TableCell>
+                    <TableCell sx={{ position: 'sticky', left: 0, zIndex: 1, backgroundColor: 'white' }}>{row.name}</TableCell>
                     <TableCell>{row.address}</TableCell>
                     <TableCell>{row.position}</TableCell>
                     <TableCell>{row.school_name}</TableCell>
@@ -277,32 +330,51 @@ const handleSort = (column) => {
                                             })()
                                           : ''}
                                       </TableCell>
-                    <TableCell sx={{color: row.pdf_path ? 'blue' : 'red'}}>
-                      {row.pdf_path ? (
-                        <a
-                          href={`${baseURL}/${row.pdf_path}`}
-                          target="_blank"
-                          rel="noreferrer"
-                        >
-                          View
-                        </a>
-                      ) : (
-                        'No PDF Available'
-                      )}
+                    <TableCell>
+                      <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                        <StatusChip
+                          label={row.pdf_path ? 'Available' : 'Missing'}
+                          statusKey={row.pdf_path ? 'completed' : 'upcoming'}
+                        />
+                        {row.pdf_path && (
+                          <Link
+                            href={`${baseURL}/${row.pdf_path}`}
+                            target="_blank"
+                            rel="noreferrer"
+                            color="primary"
+                            underline="hover"
+                          >
+                            View
+                          </Link>
+                        )}
+                      </Box>
                     </TableCell>
-                    <TableCell sx={{ display: 'flex', alignContent: 'start' }}>
-                      <IconButton onClick={() => handleEditClick(row)}>
-                        <Edit />
-                      </IconButton>
-                      <IconButton
-                        onClick={() => handleDelete(row.idorder)}
-                        color="error"
-                      >
-                        <Delete />
-                      </IconButton>
+                    <TableCell>
+                      <Box sx={{ display: 'flex' }}>
+                        <Tooltip title="Edit">
+                          <IconButton color="primary" onClick={() => handleEditClick(row)}>
+                            <Edit />
+                          </IconButton>
+                        </Tooltip>
+                        <Tooltip title="Delete">
+                        <IconButton
+                          onClick={() => handleDelete(row.idorder)}
+                          color="error"
+                        >
+                          <Delete />
+                        </IconButton>
+                        </Tooltip>
+                      </Box>
                     </TableCell>
                   </TableRow>
                 ))}
+                {!loading && displayedOrders.length === 0 && (
+                  <TableRow>
+                    <TableCell colSpan={8} align="center">
+                      <EmptyState message="No notices found" hint="Try a different search term." />
+                    </TableCell>
+                  </TableRow>
+                )}
               </TableBody>
             </Table>
           </TableContainer>
@@ -329,6 +401,7 @@ const handleSort = (column) => {
             <Autocomplete
   options={schools}
   getOptionLabel={(option) => `${option.school_name} (${option.district_name})`}
+  filterOptions={startsWithFirstFilter((option) => option.school_name)}
   value={
     schools.find((school) => school.school_id === editing?.school) || null
   }
@@ -363,15 +436,16 @@ const handleSort = (column) => {
 />
 
             {/* PDF Upload */}
-            <Button variant="outlined" component="label" sx={{ mt: 2 }}>
+            <Button variant="outlined" component="label" startIcon={<UploadFileIcon />} sx={{ mt: 2 }}>
               Upload PDF
               <input
                 type="file"
                 accept="application/pdf"
                 hidden
-                onChange={(e) =>
-                  setEditing((prev) => ({ ...prev, pdf: e.target.files[0] }))
-                }
+                onChange={(e) => {
+                  setEditing((prev) => ({ ...prev, pdf: e.target.files[0] }));
+                  e.target.value = '';
+                }}
               />
             </Button>
             {editing?.pdf && (
@@ -382,14 +456,19 @@ const handleSort = (column) => {
           </DialogContent>
           <DialogActions>
             <Button onClick={() => setOpen(false)}>Cancel</Button>
-            <Button variant="contained" onClick={handleUpdate}>
+            <Button variant="contained" startIcon={<SaveIcon />} onClick={handleUpdate}>
               Save
             </Button>
           </DialogActions>
         </Dialog>
       </Box>
-    </Box>
   );
 };
+
+const EditOrder = () => (
+  <AppShell title="Manage Notices" navLinks={ADMIN_NOTICE_NAV_LINKS} showLogout>
+    <EditOrderContent />
+  </AppShell>
+);
 
 export default EditOrder;

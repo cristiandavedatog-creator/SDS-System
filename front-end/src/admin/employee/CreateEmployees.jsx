@@ -2,20 +2,27 @@ import React, { useState, useEffect } from 'react';
 import {
   TextField, Button, Grid, Typography, Paper,
   Table, TableContainer, TableHead, TableRow, TableCell, TableBody,
-  Box, CircularProgress,
+  Box, CircularProgress, IconButton, InputAdornment, Tooltip,
   Dialog, DialogTitle, DialogContent, DialogActions
 } from '@mui/material';
+import {
+  Add as AddIcon,
+  Edit as EditIcon,
+  Delete as DeleteIcon,
+  Search as SearchIcon,
+  Save as SaveIcon,
+  UploadFile as UploadFileIcon,
+} from '@mui/icons-material';
 import axios from 'axios';
 import * as XLSX from 'xlsx';
 import Swal from 'sweetalert2';
-import Header from '../../Components/Header';
+import AppShell from '../../Components/AppShell';
+import { ADMIN_EMPLOYEE_NAV_LINKS } from '../../config/navLinks';
+import EmptyState from '../../Components/reusable_components/EmptyState';
+import TableSkeleton from '../../Components/reusable_components/TableSkeleton';
 
-const navLinks = [
-  { label: 'Dashboard', path: '/admin' },
-  { label: 'Employees', path: '/employees' },
-];
 const showSwal = (options) => {
-  Swal.fire({
+  return Swal.fire({
     ...options,
     didOpen: () => {
       const swalContainer = document.querySelector('.swal2-container');
@@ -26,7 +33,10 @@ const showSwal = (options) => {
   });
 };
 
-const CreateEmployee = () => {
+// Exported separately so the admin dashboard can render this content inline
+// (inside its container-transform overlay) without a nested AppShell. All
+// state/logic/data-fetching below is unchanged from the original component.
+export const CreateEmployeeContent = () => {
   const [formData, setFormData] = useState({
     uid: null,
     fullName: '',
@@ -39,6 +49,7 @@ const CreateEmployee = () => {
   const [isEditing, setIsEditing] = useState(false);
   const [file, setFile] = useState(null);
   const [loading, setLoading] = useState(false);
+  const [initialLoading, setInitialLoading] = useState(true);
   const [openFormModal, setOpenFormModal] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const baseURL = import.meta.env.VITE_API_URL;
@@ -77,6 +88,8 @@ const CreateEmployee = () => {
       setEmployees(response.data);
     } catch (error) {
       setMessage(`Error fetching employees: ${error.response?.data?.error || error.message}`);
+    } finally {
+      setInitialLoading(false);
     }
   };
 
@@ -136,6 +149,17 @@ const CreateEmployee = () => {
   };
 
   const handleDelete = async (uid) => {
+    const result = await showSwal({
+      title: 'Are you sure?',
+      text: 'This also permanently deletes every travel record linked to this employee. You won’t be able to revert this!',
+      icon: 'warning',
+      showCancelButton: true,
+      confirmButtonColor: '#3085d6',
+      cancelButtonColor: '#d33',
+      confirmButtonText: 'Yes, delete it!',
+    });
+    if (!result.isConfirmed) return;
+
     setLoading(true);
     try {
       const response = await axios.delete(`${baseURL}/api/employees/${uid}`);
@@ -242,16 +266,13 @@ const CreateEmployee = () => {
   }, []);
 
   return (
-    <Box>
-      {/* Navbar */}
-      <Header title="Employee" navLinks={navLinks} showLogout />
-
+    <>
       {/* Employee List and Add Button */}
-      <Paper style={{ padding: 20, maxWidth: 800, margin: '20px auto' }}>
-         <Typography variant="h5" gutterBottom>
+      <Paper sx={{ p: { xs: 2, sm: 3 }, width: '100%', maxWidth: 1400, margin: '20px auto' }}>
+        <Typography variant="h6" gutterBottom>
           Employee List
         </Typography>
-        <Box sx={{ display: 'flex', flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 2 }}>
+        <Box sx={{ display: 'flex', flexDirection: { xs: 'column', sm: 'row' }, alignItems: { xs: 'stretch', sm: 'center' }, justifyContent: 'space-between', gap: 2 }}>
           <TextField
             label="Search"
             variant="outlined"
@@ -259,8 +280,15 @@ const CreateEmployee = () => {
           value={searchQuery}
           onChange={handleSearchChange}
           sx={{ marginBottom: 2 }}
+          InputProps={{
+            startAdornment: (
+              <InputAdornment position="start">
+                <SearchIcon fontSize="small" />
+              </InputAdornment>
+            ),
+          }}
         />
-        <Button variant="contained" color="primary" onClick={handleOpenCreateModal} sx={{ marginBottom: 2 }}>
+        <Button variant="contained" color="primary" startIcon={<AddIcon />} onClick={handleOpenCreateModal} sx={{ marginBottom: 2, whiteSpace: 'nowrap' }}>
           Add New Employee
         </Button>
 
@@ -270,7 +298,7 @@ const CreateEmployee = () => {
           <Table stickyHeader>
             <TableHead>
               <TableRow>
-                <TableCell>Full Name</TableCell>
+                <TableCell sx={{ position: 'sticky', left: 0, zIndex: 3 }}>Full Name</TableCell>
                 <TableCell>Office</TableCell>
                 <TableCell>Position Title</TableCell>
                 <TableCell>Initial</TableCell>
@@ -278,39 +306,48 @@ const CreateEmployee = () => {
               </TableRow>
             </TableHead>
             <TableBody>
-              {filteredEmployees.length > 0 ? (
+              {initialLoading ? (
+                <TableSkeleton columns={5} />
+              ) : filteredEmployees.length > 0 ? (
                 filteredEmployees.map((employee) => (
                   <TableRow key={employee.uid}>
-                    <TableCell>{employee.fullname}</TableCell>
+                    <TableCell sx={{ position: 'sticky', left: 0, zIndex: 1, backgroundColor: 'white' }}>{employee.fullname}</TableCell>
                     <TableCell>{employee.office}</TableCell>
                     <TableCell>{employee.positionTitle}</TableCell>
                     <TableCell>{employee.Initial}</TableCell>
                     <TableCell>
-                      <Button
-                        variant="outlined"
-                        color="primary"
-                        onClick={() => handleOpenEditModal(employee)}
-                        style={{ marginRight: 8 }}
-                        disabled={loading}
-                      >
-                        Edit
-                      </Button>
-                      <Button
-                        variant="outlined"
-                        color="secondary"
-                        onClick={() => handleDelete(employee.uid)}
-                        disabled={loading}
-                      >
-                        Delete
-                      </Button>
+                      <Tooltip title="Edit">
+                        <span>
+                          <IconButton
+                            color="primary"
+                            onClick={() => handleOpenEditModal(employee)}
+                            disabled={loading}
+                          >
+                            <EditIcon />
+                          </IconButton>
+                        </span>
+                      </Tooltip>
+                      <Tooltip title="Delete">
+                        <span>
+                          <IconButton
+                            color="error"
+                            onClick={() => handleDelete(employee.uid)}
+                            disabled={loading}
+                          >
+                            <DeleteIcon />
+                          </IconButton>
+                        </span>
+                      </Tooltip>
                     </TableCell>
                   </TableRow>
                 ))
-              ) : (
+              ) : !initialLoading ? (
                 <TableRow>
-                  <TableCell colSpan={5} align="center">No employees found</TableCell>
+                  <TableCell colSpan={5} align="center">
+                    <EmptyState message="No employees found" hint="Try a different search term." />
+                  </TableCell>
                 </TableRow>
-              )}
+              ) : null}
             </TableBody>
           </Table>
         </TableContainer>
@@ -331,7 +368,7 @@ const CreateEmployee = () => {
           )}
           <form id="employee-form" onSubmit={handleSubmit}>
             <Grid container spacing={2} sx={{ mt: 1 }}>
-              <Grid item xs={12}>
+              <Grid size={12}>
                 <TextField
                   label="Full Name"
                   name="fullName"
@@ -340,7 +377,7 @@ const CreateEmployee = () => {
                   fullWidth required
                 />
               </Grid>
-              <Grid item xs={12}>
+              <Grid size={12}>
                 <TextField
                   label="Office"
                   name="office"
@@ -349,7 +386,7 @@ const CreateEmployee = () => {
                   fullWidth required
                 />
               </Grid>
-              <Grid item xs={12}>
+              <Grid size={12}>
                 <TextField
                   label="Position Title"
                   name="positionTitle"
@@ -358,7 +395,7 @@ const CreateEmployee = () => {
                   fullWidth required
                 />
               </Grid>
-              <Grid item xs={12}>
+              <Grid size={12}>
                 <TextField
                   label="Initial"
                   name="initial"
@@ -372,14 +409,14 @@ const CreateEmployee = () => {
         </DialogContent>
         <DialogActions>
           <Button onClick={handleCancelEdit} disabled={loading}>Cancel</Button>
-          <Button form="employee-form" type="submit" variant="contained" color="primary" disabled={loading}>
+          <Button form="employee-form" type="submit" variant="contained" color="primary" startIcon={!loading && <SaveIcon />} disabled={loading}>
             {loading ? <CircularProgress size={24} /> : isEditing ? 'Update Employee' : 'Create Employee'}
           </Button>
         </DialogActions>
       </Dialog>
 
       {/* Bulk Upload */}
-      <Box style={{ padding: 20, maxWidth: 800, margin: '20px auto' }}>
+      <Box sx={{ p: { xs: 2, sm: 3 }, width: '100%', maxWidth: 1400, margin: '20px auto' }}>
         <Typography variant="h6" gutterBottom>
           Bulk Upload via Excel
         </Typography>
@@ -393,14 +430,30 @@ const CreateEmployee = () => {
         <Button
           variant="contained"
           color="secondary"
+          startIcon={!loading && <UploadFileIcon />}
           onClick={handleFileUpload}
           disabled={loading}
         >
           {loading ? <CircularProgress size={24} /> : 'Upload'}
         </Button>
+        {message && (
+          <Typography
+            variant="body1"
+            color={message.includes('Error') || message.includes('failed') ? 'error' : 'primary'}
+            sx={{ mt: 1.5 }}
+          >
+            {message}
+          </Typography>
+        )}
       </Box>
-    </Box>
+    </>
   );
 };
+
+const CreateEmployee = () => (
+  <AppShell title="Employee" navLinks={ADMIN_EMPLOYEE_NAV_LINKS} showLogout>
+    <CreateEmployeeContent />
+  </AppShell>
+);
 
 export default CreateEmployee;

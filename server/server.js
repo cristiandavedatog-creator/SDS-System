@@ -20,6 +20,26 @@ app.use(express.urlencoded({ limit: '50mb', extended: true })); // Increase URL-
 app.use(express.static(path.join(__dirname, 'public')));
 app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
 
+// Friendly fallback for attachments that exist in the database but not on disk
+// (e.g. records migrated from the production database whose PDF files weren't
+// transferred along with the SQL export) — replaces Express's raw "Cannot GET".
+app.use('/uploads', (req, res) => {
+  res.status(404).send(`
+    <!DOCTYPE html>
+    <html lang="en">
+      <head>
+        <meta charset="UTF-8" />
+        <title>File not available</title>
+      </head>
+      <body style="font-family: -apple-system, 'Segoe UI', Roboto, sans-serif; text-align: center; padding: 80px 20px; color: #1e293b; background: #eef2f8;">
+        <h2 style="margin-bottom: 8px;">File not available</h2>
+        <p style="margin: 0 0 4px;">This attachment could not be found on the server.</p>
+        <p style="color: #64748b; font-size: 14px; margin: 0;">It may not have been transferred during the recent data migration.</p>
+      </body>
+    </html>
+  `);
+});
+
 // Use routes
 app.use('/api', authRoutes);              // /api/auth/login
 app.use('/api', appointmentRoutes);       // All /api/appointment and /api/appointments

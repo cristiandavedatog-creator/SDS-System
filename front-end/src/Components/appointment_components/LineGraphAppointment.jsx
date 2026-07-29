@@ -13,6 +13,7 @@ import {
 import axios from 'axios';
 import {
   Box,
+  Paper,
   Typography,
   CircularProgress,
   FormControl,
@@ -22,6 +23,7 @@ import {
 } from '@mui/material';
 import dayjs from 'dayjs';
 import utc from 'dayjs/plugin/utc';
+import { BRAND } from '../../theme/theme';
 
 dayjs.extend(utc);
 ChartJS.register(
@@ -93,8 +95,8 @@ const LineGraphAppointment = () => {
         {
           label: `Appointments in ${selectedYear}`,
           data: monthCounts,
-          borderColor: '#4caf50',
-          backgroundColor: 'rgba(76, 175, 80, 0.3)',
+          borderColor: BRAND.accent,
+          backgroundColor: BRAND.chartFill,
           fill: true,
           tension: 0.3,
         },
@@ -103,25 +105,25 @@ const LineGraphAppointment = () => {
   }, [appointments, selectedYear]);
 
   return (
-    <Box
+    <Paper
+      elevation={2}
       sx={{
         maxWidth: 900,
         mx: 'auto',
-        p: 3,
-        boxShadow: 2,
-        bgcolor: 'white',
-        borderRadius: 2,
+        p: { xs: 1.5, sm: 2 },
       }}
     >
       <Box
         sx={{
           display: 'flex',
+          flexWrap: 'wrap',
           justifyContent: 'space-between',
           alignItems: 'center',
-          mb: 3,
+          gap: 2,
+          mb: 1.5,
         }}
       >
-        <Typography variant="h5">Monthly Appointment Count</Typography>
+        <Typography variant="subtitle1" fontWeight={700}>Monthly Appointment Count</Typography>
 
         {/* Year Filter */}
         <FormControl sx={{ minWidth: 150 }}>
@@ -143,11 +145,13 @@ const LineGraphAppointment = () => {
       {loading ? (
         <CircularProgress />
       ) : graphData ? (
-        <Line data={graphData} />
+        <Box sx={{ position: 'relative', width: '100%', height: { xs: 200, sm: 230, md: 260 } }}>
+          <Line data={graphData} options={{ responsive: true, maintainAspectRatio: false }} />
+        </Box>
       ) : (
         <Typography>No data available.</Typography>
       )}
-    </Box>
+    </Paper>
   );
 };
 

@@ -13,6 +13,7 @@ import {
 import { Bar } from 'react-chartjs-2';
 import {
   Box,
+  Paper,
   Typography,
   FormControl,
   Select,
@@ -20,6 +21,7 @@ import {
   InputLabel,
   CircularProgress,
 } from '@mui/material';
+import { BRAND } from '../../theme/theme';
 
 ChartJS.register(BarElement, CategoryScale, LinearScale, Tooltip, Legend);
 dayjs.extend(isoWeek);
@@ -124,9 +126,12 @@ const BarGraphAppointment = () => {
       datasetsMap[nature] = labels.map(label => grouped[label]?.[nature] || 0);
     });
 
+    // Cohesive navy/accent-based palette (instead of an unrelated rainbow array)
+    // so series colors stay on-brand. Each series also keeps its own legend
+    // label so color is never the only differentiator.
     const colors = [
-      '#42a5f5', '#66bb6a', '#ffa726', '#ab47bc',
-      '#ef5350', '#26c6da', '#ff7043', '#8d6e63',
+      BRAND.navy, BRAND.accent, BRAND.navyLight,
+      '#0ea5e9', '#94a3b8', '#7dd3fc',
     ];
 
     const datasets = Object.keys(datasetsMap).map((nature, index) => ({
@@ -139,12 +144,12 @@ const BarGraphAppointment = () => {
   }, [appointments, groupBy, natureFilter, districtFilter, schoolFilter]);
 
   return (
-    <Box sx={{ maxWidth: 900, mx: 'auto', p: 2, boxShadow: 2, bgcolor: 'white', borderRadius: 2 }}>
-      <Typography variant="h5" mb={3}>
+    <Paper elevation={2} sx={{ maxWidth: 900, mx: 'auto', p: { xs: 1.5, sm: 2 } }}>
+      <Typography variant="subtitle1" fontWeight={700} mb={1.5}>
         Appointment Summary ({groupBy.charAt(0).toUpperCase() + groupBy.slice(1)})
       </Typography>
 
-      <Box sx={{ display: 'flex', gap: 2, mb: 3, flexWrap: 'wrap' }}>
+      <Box sx={{ display: 'flex', gap: 2, mb: 1.5, flexWrap: 'wrap' }}>
         <FormControl sx={{ minWidth: 220 }} size="small">
           <InputLabel>Sort By</InputLabel>
           <Select value={groupBy} label="Sort By" onChange={(e) => setGroupBy(e.target.value)}>
@@ -185,7 +190,7 @@ const BarGraphAppointment = () => {
         </FormControl>
       </Box>
 
-      <Box sx={{ display: 'flex', gap: 2, mb: 3, flexWrap: 'wrap' }}>
+      <Box sx={{ display: 'flex', gap: 2, mb: 1.5, flexWrap: 'wrap' }}>
         <FormControl sx={{ minWidth: 220, maxWidth: 220 }} size="small">
           <InputLabel>District</InputLabel>
           <Select
@@ -228,11 +233,13 @@ const BarGraphAppointment = () => {
       {loading ? (
         <CircularProgress />
       ) : barData ? (
-        <Bar data={barData} />
+        <Box sx={{ position: 'relative', width: '100%', height: { xs: 200, sm: 230, md: 260 } }}>
+          <Bar data={barData} options={{ responsive: true, maintainAspectRatio: false }} />
+        </Box>
       ) : (
         <Typography>No data to display.</Typography>
       )}
-    </Box>
+    </Paper>
   );
 };
 

@@ -13,11 +13,11 @@ import {
 import * as XLSX from 'xlsx';
 import axios from 'axios';
 import dayjs from 'dayjs';
+import Swal from 'sweetalert2';
+import { BRAND } from '../../theme/theme';
 
 const BulkAppointmentUpload = () => {
   const fileInputRef = useRef();
-  const [action, setAction] = useState('update'); // Default to 'update'
-  const [selectedFile, setSelectedFile] = useState(null);
   const [parsedData, setParsedData] = useState([]);
   const [previewData, setPreviewData] = useState([]);
   const [openDialog, setOpenDialog] = useState(false);
@@ -50,7 +50,7 @@ const BulkAppointmentUpload = () => {
       'remarks'
     ];
     const missingColumns = requiredColumns.filter(
-      (col) => !rows[0]?.hasOwnProperty(col)
+      (col) => !rows[0] || !Object.prototype.hasOwnProperty.call(rows[0], col)
     );
     return missingColumns;
   };
@@ -81,7 +81,11 @@ const BulkAppointmentUpload = () => {
 
       const missingColumns = validateColumns(rows);
       if (missingColumns.length > 0) {
-        alert(`Missing mandatory columns: ${missingColumns.join(', ')}`);
+        Swal.fire({
+          icon: 'error',
+          title: 'Missing Columns',
+          text: `Missing mandatory columns: ${missingColumns.join(', ')}`,
+        });
         setLoading(false); // Hide loading indicator
         return;
       }
@@ -109,13 +113,12 @@ const BulkAppointmentUpload = () => {
   const handleFileChange = (e) => {
     const file = e.target.files[0];
     if (file) {
-      setSelectedFile(file);
       parseFile(file);
     }
+    e.target.value = '';
   };
 
   const cancelFileSelection = () => {
-    setSelectedFile(null);
     setParsedData([]);
     setPreviewData([]);
     setOpenDialog(false);
@@ -131,21 +134,36 @@ const BulkAppointmentUpload = () => {
         headers: { 'Content-Type': 'application/json' }
       });
 
-      alert(res.data.message || 'Update successful!');
+      Swal.fire({
+        icon: 'success',
+        title: 'Success',
+        text: res.data.message || 'Update successful!',
+      });
     } catch (err) {
       console.error('Update failed:', err);
 
       if (err.response?.status === 400) {
-        alert('Bad request: Check your file formatting.');
+        Swal.fire({
+          icon: 'error',
+          title: 'Bad Request',
+          text: 'Check your file formatting.',
+        });
       } else if (err.response?.status === 500) {
-        alert('Internal server error: Please contact support.');
+        Swal.fire({
+          icon: 'error',
+          title: 'Server Error',
+          text: 'Internal server error: Please contact support.',
+        });
       } else {
-        alert('Update failed: Unknown error.');
+        Swal.fire({
+          icon: 'error',
+          title: 'Update Failed',
+          text: 'Unknown error.',
+        });
       }
     } finally {
       setLoading(false);
       setOpenDialog(false);
-      setSelectedFile(null);
       setParsedData([]);
     }
   };
@@ -155,7 +173,6 @@ const BulkAppointmentUpload = () => {
       <Stack direction="row" spacing={2} mt={2}>
         <Button
           variant="contained"
-          color="secondary"
           onClick={() => fileInputRef.current.click()}
         >
           Upload File
@@ -183,9 +200,9 @@ const BulkAppointmentUpload = () => {
             {parsedData.length} records found. Here's a preview of the first{' '}
             {previewData.length}:
           </DialogContentText>
-          <Box mt={2} maxHeight="300px" overflow="auto">
-            <table className="min-w-full divide-y divide-gray-200">
-              <thead className="bg-gray-100">
+          <Box mt={2} maxHeight="300px" overflow="auto" sx={{ border: '1px solid', borderColor: 'divider', borderRadius: 1 }}>
+            <table className="min-w-full border-collapse">
+              <thead>
                 <tr>
                   {[
                     'Name',
@@ -200,7 +217,8 @@ const BulkAppointmentUpload = () => {
                   ].map((head) => (
                     <th
                       key={head}
-                      className="px-4 py-2 text-left text-xs font-bold text-gray-600"
+                      className="px-4 py-2 text-left text-xs font-bold text-slate-700 border-b border-slate-200"
+                      style={{ backgroundColor: BRAND.tableHead }}
                     >
                       {head}
                     </th>
@@ -209,7 +227,7 @@ const BulkAppointmentUpload = () => {
               </thead>
               <tbody>
                 {previewData.map((row, index) => (
-                  <tr key={index} className="border-b">
+                  <tr key={index} className="border-b border-slate-200 even:bg-slate-50 hover:bg-sky-50/60 transition-colors">
                     <td className="px-4 py-2 text-sm">{row.Name}</td>
                     <td className="px-4 py-2 text-sm">{row.PositionTitle}</td>
                     <td className="px-4 py-2 text-sm">{row.SchoolOffice}</td>
@@ -236,7 +254,6 @@ const BulkAppointmentUpload = () => {
           <Button
             onClick={handleUpdate}
             variant="contained"
-            color="secondary"
             disabled={loading}
           >
             {loading ? <CircularProgress size={24} /> : 'Confirm'}

@@ -7,6 +7,7 @@ const crypto = require('crypto');
 const multer = require('multer');
 const XLSX = require('xlsx');
 const requireAuth = require('../middleware/auth');
+const { extractAppointmentPdf } = require('../utils/extractAppointmentPdf');
 
 // Multer setup for PDF uploads
 const storage = multer.diskStorage({
@@ -36,6 +37,20 @@ const bulkUpload = multer({
     const ext = path.extname(file.originalname).toLowerCase();
     if (!['.xlsx', '.xls', '.csv'].includes(ext)) {
       return cb(new Error('Only Excel/CSV files are allowed.'));
+    }
+    cb(null, true);
+  }
+});
+
+// In-memory (not disk) — this is just a read-only preview of the PDF's
+// text, never saved as an appointment's attachment, so there's no reason
+// to write it to uploads/appointments and leave an orphaned file behind.
+const extractUpload = multer({
+  storage: multer.memoryStorage(),
+  limits: { fileSize: 10 * 1024 * 1024 },
+  fileFilter: (req, file, cb) => {
+    if (file.mimetype !== 'application/pdf') {
+      return cb(new Error('Only PDF files are allowed.'));
     }
     cb(null, true);
   }
@@ -71,13 +86,47 @@ router.get('/appointments', (req, res) => {
              ad.StatusOfAppointment, 
              ad.NatureAppointment, 
              ad.ItemNo, 
-             ad.DateSigned, 
-             ad.pdfPath, 
-             ad.remarks;
+             ad.DateSigned,
+             ad.pdfPath,
+             ad.remarks
+    ORDER BY ad.id DESC;
   `;
   db.query(sql, (err, results) => {
     if (err) return res.status(500).json({ error: 'Database error.' });
     res.status(200).json(results);
+  });
+});
+
+// Numeric totals for the Statistics page: appointments signed in a chosen
+// year, in a chosen month of that year, and in the current calendar week.
+router.get('/appointments/stats', (req, res) => {
+  const now = new Date();
+  const yearNum = req.query.year ? Number(req.query.year) : now.getFullYear();
+  const monthNum = req.query.month ? Number(req.query.month) : now.getMonth() + 1;
+
+  const query = `
+    SELECT
+      SUM(CASE WHEN YEAR(DateSigned) = ? THEN 1 ELSE 0 END) AS yearTotal,
+      SUM(CASE WHEN YEAR(DateSigned) = ? AND MONTH(DateSigned) = ? THEN 1 ELSE 0 END) AS monthTotal,
+      SUM(CASE WHEN YEARWEEK(DateSigned, 1) = YEARWEEK(CURDATE(), 1) THEN 1 ELSE 0 END) AS weekTotal
+    FROM appointment_details
+    WHERE DateSigned IS NOT NULL
+  `;
+
+  db.query(query, [yearNum, yearNum, monthNum], (err, results) => {
+    if (err) {
+      console.error('Query Error:', err);
+      return res.status(500).json({ error: 'Failed to retrieve appointment stats', details: err.message });
+    }
+
+    const row = results[0];
+    res.json({
+      year: yearNum,
+      month: monthNum,
+      yearTotal: Number(row.yearTotal) || 0,
+      monthTotal: Number(row.monthTotal) || 0,
+      weekTotal: Number(row.weekTotal) || 0,
+    });
   });
 });
 
@@ -133,11 +182,81 @@ router.get('/appointment/:id/release-info', (req, res) => {
 });
 
 
+// Words that vary between how the `schools` table stores names ("Bagasbas
+// ES") and how they're actually printed/OCR'd on an appointment PDF
+// ("BAGASBAS ELEMENTARY SCHOOL") — stripping them from the tail of both
+// forms reduces each down to the same bare place name for comparison.
+const SCHOOL_TYPE_TOKENS = new Set([
+  'SCHOOL', 'SCHOOLS', 'ELEMENTARY', 'HIGH', 'INTEGRATED', 'CENTRAL',
+  'NATIONAL', 'MIDDLE', 'DIVISION', 'OFFICE',
+  'ES', 'HS', 'IS', 'MS', 'NHS', 'CS', 'SDO',
+]);
+
+function coreSchoolName(name) {
+  if (!name) return '';
+  // Fold a handful of OCR digit/letter confusions (seen repeatedly on real
+  // scans in this project, e.g. "K1MVERLY", "SONNY R. 1CO") into the
+  // comparison — school names never legitimately contain these digits, so
+  // this is a no-op on clean DB names and only helps on OCR'd ones.
+  const deconfused = name.replace(/1/g, 'I').replace(/0/g, 'O').replace(/5/g, 'S').replace(/8/g, 'B');
+  const tokens = deconfused.toUpperCase().replace(/[.,-]/g, ' ').split(/\s+/).filter(Boolean);
+  while (tokens.length > 1 && SCHOOL_TYPE_TOKENS.has(tokens[tokens.length - 1])) {
+    tokens.pop();
+  }
+  return tokens.join(' ');
+}
+
+// Looks up which district a school belongs to, given the (OCR'd, so not
+// necessarily exact) school name extracted from a PDF. Only an exact match
+// on the normalized name is trusted — no partial/fuzzy fallback — since a
+// wrong district is worse than leaving it blank for the admin to fill in.
+// The same place name can genuinely exist in more than one district here
+// (e.g. "San Jose ES" exists in both Basud and Jose Panganiban West) — if
+// the matches disagree on district, that's ambiguous, not wrong, so it's
+// left blank rather than guessing.
+function findDistrictForSchool(schoolOfficeName) {
+  return new Promise((resolve) => {
+    const sql = `
+      SELECT schools.name AS school_name, district.name AS district_name
+      FROM schools
+      JOIN district ON schools.district_id = district.id
+    `;
+    db.query(sql, (err, results) => {
+      if (err || !results.length) return resolve(null);
+      const target = coreSchoolName(schoolOfficeName);
+      if (!target) return resolve(null);
+      const matches = results.filter((r) => coreSchoolName(r.school_name) === target);
+      // "N/A" is the SDO placeholder's non-district, and "-" marks schools
+      // whose real district isn't known yet — neither is a real answer to
+      // auto-fill in.
+      const districts = new Set(matches.map((m) => m.district_name).filter((d) => d !== 'N/A' && d !== '-'));
+      resolve(districts.size === 1 ? [...districts][0] : null);
+    });
+  });
+}
+
+// Best-effort field extraction from an uploaded PDF, for auto-filling the
+// Create Appointment form. Never writes anything to the database — reads
+// the PDF's own text layer if it has one, falls back to OCR on page 1 if
+// not (most of these are scanned images), and returns whatever it could
+// confidently match, null for everything else so the admin fills those in
+// by hand. District isn't printed on the form at all, so it's separately
+// looked up from whichever school/office name was extracted.
+router.post('/appointment/extract-pdf', requireAuth, extractUpload.single('pdf'), async (req, res) => {
+  if (!req.file) return res.status(400).json({ error: 'No PDF uploaded.' });
+
+  try {
+    const { hasText, fields } = await extractAppointmentPdf(req.file.buffer);
+    fields.district = fields.schoolOffice ? await findDistrictForSchool(fields.schoolOffice) : null;
+    res.status(200).json({ hasText, fields });
+  } catch (err) {
+    console.error('PDF extraction error:', err);
+    res.status(500).json({ error: 'Failed to read the PDF.' });
+  }
+});
+
 // Create appointment (with optional PDF)
 router.post('/appointment', requireAuth, upload.single('pdf'), (req, res) => {
-  console.log('Request Body:', req.body); // Log the request body
-  console.log('Uploaded File:', req.file); // Log the uploaded file
-
   const {
     name,
     positionTitle,
@@ -218,22 +337,6 @@ router.put('/appointment/:id', requireAuth, upload.single('pdf'), (req, res) => 
 
   // Handle PDF upload path
   const pdfPath = req.file ? `uploads/appointments/${req.file.filename}` : null;
-
-  // Log incoming data for debugging
-  console.log('Incoming data:', {
-    id,
-    name,
-    positionTitle,
-    schoolOffice,
-    district,
-    statusOfAppointment,
-    natureAppointment,
-    itemNo,
-    dateSigned: formattedDateSigned,
-    remarks,
-    released,
-    file: req.file ? req.file.filename : null,
-  });
 
   // Update appointment_details table
   const updateAppointmentDetailsSQL = `
@@ -386,11 +489,20 @@ const values = filteredData.map(row => [
       INSERT INTO \`appointment_details\`
       (Name, PositionTitle, SchoolOffice, District, StatusOfAppointment, NatureAppointment, ItemNo, DateSigned, remarks)
       VALUES ?
+      ON DUPLICATE KEY UPDATE
+        Name = VALUES(Name),
+        PositionTitle = VALUES(PositionTitle),
+        SchoolOffice = VALUES(SchoolOffice),
+        District = VALUES(District),
+        StatusOfAppointment = VALUES(StatusOfAppointment),
+        NatureAppointment = VALUES(NatureAppointment),
+        DateSigned = VALUES(DateSigned),
+        remarks = VALUES(remarks)
     `;
 
     db.query(sql, [values], (err, result) => {
       if (err) return res.status(500).json({ error: 'Database insertion failed.' });
-      res.status(200).json({ message: `Inserted ${result.affectedRows} appointments.` });
+      res.status(200).json({ message: `Bulk upsert complete. ${result.affectedRows} rows affected.` });
     });
 
   } catch (err) {
@@ -419,9 +531,18 @@ router.post('/appointments/bulk-json', requireAuth, (req, res) => {
   ]);
 
   const sql = `
-    INSERT INTO \`appointment_details\` 
+    INSERT INTO \`appointment_details\`
     (Name, PositionTitle, SchoolOffice, District, StatusOfAppointment, NatureAppointment, ItemNo, DateSigned, remarks)
     VALUES ?
+    ON DUPLICATE KEY UPDATE
+      Name = VALUES(Name),
+      PositionTitle = VALUES(PositionTitle),
+      SchoolOffice = VALUES(SchoolOffice),
+      District = VALUES(District),
+      StatusOfAppointment = VALUES(StatusOfAppointment),
+      NatureAppointment = VALUES(NatureAppointment),
+      DateSigned = VALUES(DateSigned),
+      remarks = VALUES(remarks)
   `;
 
   db.query(sql, [values], (err, result) => {
@@ -429,7 +550,7 @@ router.post('/appointments/bulk-json', requireAuth, (req, res) => {
       console.error('Database insertion error:', err);
       return res.status(500).json({ error: 'Database insertion failed.' });
     }
-    res.status(200).json({ message: `Inserted ${result.affectedRows} appointments.` });
+    res.status(200).json({ message: `Bulk upsert complete. ${result.affectedRows} rows affected.` });
   });
 });
 
@@ -486,39 +607,6 @@ router.post('/appointments/bulk-update', requireAuth, (req, res) => {
     }
 
     res.status(200).json({ message: `Bulk update complete. ${result.affectedRows} rows affected.` });
-  });
-});
-
-
-
-
-router.post('/check-existence', (req, res) => {
-  const { name, itemNo } = req.body;
-
-  if (!name && !itemNo) {
-    return res.status(400).json({
-      error: 'Both name and itemNo are required for validation.',
-    });
-  }
-
-  const sql = 'SELECT id FROM `appointment_details` WHERE `Name` = ? OR `ItemNo` = ?';
-  db.query(sql, [name, itemNo], (err, results) => {
-    if (err) {
-      console.error('Error checking appointment existence:', err);
-      return res.status(500).json({ error: 'Internal server error. Please try again later.' });
-    }
-
-    if (results.length > 0) {
-      return res.status(200).json({
-        exists: true,
-        message: 'An appointment with this Name or Item No. already exists.',
-      });
-    }
-
-    return res.status(200).json({
-      exists: false,
-      message: 'No duplicate appointment found.',
-    });
   });
 });
 
