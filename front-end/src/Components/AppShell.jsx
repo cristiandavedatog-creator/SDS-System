@@ -74,7 +74,7 @@ const AppShell = ({ title, navLinks = [], showLogout = false, children }) => {
             <h1 className="text-xl font-bold" style={{ color: BRAND.navy }}>{title}</h1>
           </header>
         )}
-        <div className="flex-1 min-h-0 overflow-y-auto px-6 pt-5 pb-6">
+        <div className="flex-1 min-h-0 overflow-auto px-6 pt-5 pb-6">
           {children}
         </div>
       </div>

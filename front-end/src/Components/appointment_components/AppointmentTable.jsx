@@ -18,6 +18,7 @@ import { BRAND } from '../../theme/theme';
 import StatusChip from '../reusable_components/StatusChip';
 import EmptyState from '../reusable_components/EmptyState';
 import TableSkeleton from '../reusable_components/TableSkeleton';
+import { isAuthenticated } from '../../auth/authClient';
 
 const AppointmentTable = ({ searchQuery, setSearchQuery }) => {
   const [appointments, setAppointments] = useState([]);
@@ -402,7 +403,7 @@ const AppointmentTable = ({ searchQuery, setSearchQuery }) => {
                           >
                             View
                           </Button>
-                        ) : (
+                        ) : isAuthenticated() ? (
                           <Button
                             variant="contained"
                             color="primary"
@@ -411,6 +412,10 @@ const AppointmentTable = ({ searchQuery, setSearchQuery }) => {
                           >
                             Release
                           </Button>
+                        ) : (
+                          <Typography variant="body2" color="text.secondary">
+                            Not released
+                          </Typography>
                         )}
                       </TableCell>
                     </TableRow>
